@@ -402,15 +402,8 @@ EXTENSION_QUALITY_SUFFIX := [ChordQuality][ChordExtension]string {
   }
 }
 
-pitch_to_note :: proc(pc: PitchClass, prefer_flats: bool) -> Note {
-  if prefer_flats {
-    return _FLAT_SPELLINGS[pc]
-  }
-  return _SHARP_SPELLINGS[pc]
-}
-
-@(rodata)
-_SHARP_SPELLINGS := [12]Note {
+@(private="file") @(rodata)
+SHARP_SPELLINGS := [12]Note {
   { pitch = .C,  letter = 'C', accidental = .Natural},
   { pitch = .Cs, letter = 'C', accidental = .Sharp},
   { pitch = .D,  letter = 'D', accidental = .Natural},
@@ -425,8 +418,8 @@ _SHARP_SPELLINGS := [12]Note {
   { pitch = .B,  letter = 'B', accidental = .Natural},
 }
 
-@(rodata)
-_FLAT_SPELLINGS := [12]Note {
+@(private="file") @(rodata)
+FLAT_SPELLINGS := [12]Note {
   { pitch = .C,  letter = 'C', accidental = .Natural},
   { pitch = .Cs, letter = 'D', accidental = .Flat},
   { pitch = .D,  letter = 'D', accidental = .Natural},
@@ -441,8 +434,15 @@ _FLAT_SPELLINGS := [12]Note {
   { pitch = .B,  letter = 'B', accidental = .Natural},
 }
 
-@(rodata)
-_LETTER_PITCH := [256]PitchClass {
+pitch_to_note :: proc(pc: PitchClass, prefer_flats: bool) -> Note {
+  if prefer_flats {
+    return FLAT_SPELLINGS[pc]
+  }
+  return SHARP_SPELLINGS[pc]
+}
+
+@(private="file") @(rodata)
+LETTER_PITCH := [256]PitchClass {
   'C' = .C,
   'D' = .D,
   'E' = .E,
@@ -452,11 +452,11 @@ _LETTER_PITCH := [256]PitchClass {
   'B' = .B,
 }
 
-@(rodata)
-_LETTER_ORDER := [7]u8 { 'A', 'B', 'C', 'D', 'E', 'F', 'G' }
+@(private="file") @(rodata)
+LETTER_ORDER := [7]u8 { 'A', 'B', 'C', 'D', 'E', 'F', 'G' }
 
-@(rodata)
-_LETTER_INDEX := [256]int {
+@(private="file") @(rodata)
+LETTER_INDEX := [256]int {
   'A' = 0,
   'B' = 1,
   'C' = 2,
@@ -466,16 +466,16 @@ _LETTER_INDEX := [256]int {
   'G' = 6
 }
 
-@(private)
+@(private="file")
 letter_step :: proc(start: u8, steps: int) -> u8 {
-  idx := _LETTER_INDEX[start]
+  idx := LETTER_INDEX[start]
   res := ((idx + steps) % 7 + 7) % 7
-  return _LETTER_ORDER[res]
+  return LETTER_ORDER[res]
 }
 
-@(private)
+@(private="file")
 spell_note_as_letter :: proc(pc: PitchClass, letter: u8) -> Note {
-  natural_pc       := _LETTER_PITCH[letter]
+  natural_pc       := LETTER_PITCH[letter]
   natural_semitone := int(natural_pc)
   target_semitons  := int(pc)
 
@@ -580,7 +580,7 @@ scale_diatonic_chords :: proc(scale: ^Scale, extenion: ChordExtension) -> (chord
   return chords
 }
 
-@(private)
+@(private="file")
 pc_normalise :: proc(semitones: int) -> int {
   return ((semitones % 12) + 12) % 12
 }
