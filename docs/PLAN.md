@@ -54,7 +54,7 @@ of the claim that output is valid input.
 
 ---
 
-## Phase 2 — Chord symbol specification *(document only, no code)*
+## Phase 2 — Chord symbol specification *(complete; document only, no code)*
 
 The riskiest piece, and the one the old design collapsed under. It gets written
 down before a parser is attempted.
@@ -81,6 +81,14 @@ rules into an enumeration a parser can be tested against.
 
 **Gate** every rule in `DESIGN.md` appears in the table with at least one worked
 example, and no entry in the table contradicts another.
+
+Written. `CHORD-SYMBOLS.md` closes its own section 12 with the rule-to-section
+coverage map. Three things it settled that `DESIGN.md` had left implicit, each
+argued in place: the omission rule is keyed on the interval set alone (`M3` and
+`P11` and a seventh), canonicalization is a whole-set template lookup before it
+is a token re-emission, and `Δ` and `ø` imply a seventh where `°` does not. It
+also corrected the `C#11` example in `DESIGN.md`, which printed a ninth chord's
+notes, and opened parking lot item F on naming chords no template matches.
 
 ---
 

@@ -286,7 +286,7 @@ a symbol admits both readings, muse says how it read it:
 
 ```
 $ muse chord C#11
-C#11    C# E# G# B D#
+C#11    C# G# B D# F#      omits 3
 note: read as root C#; write C(#11) for C with a sharp eleventh
 ```
 
@@ -674,8 +674,20 @@ line, since it is the first feature that would want more than a uniform grid.
 settled but the alias set is a judgement call with no natural boundary: `Δ`,
 `ø`, `°`, `-` and `+` are clearly worth accepting, Unicode double accidentals
 probably, and beyond that it is guesswork about notation nobody in this repo
-writes. Phase 2 enumerates a first cut and the table grows when something real
-fails to parse.
+writes. Phase 2 enumerates a first cut in `CHORD-SYMBOLS.md` and the table grows
+when something real fails to parse.
+
+**F. Naming a chord that is not a template.** Identification matches interval
+sets against the template table, so `C E G Bb Db` — a `C7b9` — has no name and is
+reported as a note list, exactly as a pentatonic harmonization is. Symbols built
+by alteration are constructible and printable but not identifiable, which is an
+asymmetry the round-trip gates do not catch because they range over templates.
+
+The fix is not more rows. It is matching the nearest template and expressing the
+remainder as alterations, which is an algorithm rather than a table and fits the
+design. What it needs first is a stated limit — how many alterations are worth
+carrying before "no name" is the more honest answer — and that limit is a
+judgement best made against real output. Deferred until identification exists.
 
 ---
 
