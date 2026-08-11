@@ -20,14 +20,14 @@ Phases are ordered by dependency and each one ends in something testable. Read
 
 ---
 
-## Phase 0 — Foundation *(complete, uncommitted)*
+## Phase 0 — Foundation *(complete)*
 
 `src/muse/note.odin`, `src/muse/interval.odin` and their tests. `Letter`,
 `Note`, `Pitch`, `Interval`, spelling arithmetic, MIDI, interval quality both
 directions, interval parsing, named interval constants. 23 tests.
 
-**Immediate action:** commit this, plus the `DESIGN.md` rewrite, the `justfile`
-`test` recipe, and the removal of the five obsolete sources.
+Committed on branch `rewrite` as `a1a13a9`, along with the `DESIGN.md` rewrite,
+the `justfile` `test` recipe, and the removal of the five obsolete sources.
 
 ---
 
@@ -186,30 +186,61 @@ First phase with a running binary. `just build` works again from here.
 
 ---
 
-## Phase 7 — Full command surface
+## Phase 7 — Full transform surface
 
 **Build** `chords`, `degree`, `extend`, `transpose`, `invert`, `voice`, `name`,
-`in`, `info`, and `help`.
+`in`, and `help`.
 
-**Gate** every command reads its operand from arguments and from stdin, and
-every command's output re-parses as another command's input. The command table
-in `DESIGN.md` and the implemented set match exactly.
+**Gate** every transform reads its operand from arguments and from stdin, and
+every transform's output re-parses as another transform's input. The transform
+table in `DESIGN.md` and the implemented set match exactly.
 
 ---
 
-## Phase 8 — Formats, color, and the pipeline guarantee
+## Phase 8 — MIDI
+
+The first output that is not notation, and the phase that makes the tool
+generative. Depends on phase 5 for realization and phase 6 for writing bytes.
+
+**Files:** `src/muse/smf.odin`, `src/muse/smf_test.odin`, and the `midi` sink
 
 **Build**
-- `--format text|json|csv|midi`, defaulting to text and never switching itself.
+- Variable-length quantity encoding, chunk headers, and a format 0 single track.
+- Tempo, time signature, and key signature meta events, plus end of track.
+- `smf_encode(voicings, options) -> []byte` in the library, returning bytes and
+  touching no filesystem.
+- The `midi` sink: stdout by default, `-o FILE` alternative, refusing to write
+  binary to a terminal.
+- `--tempo`, `--meter`, `--duration`, defaulting to 120bpm, 4/4, one bar each.
+- Realize anything that is not already a voicing on the way through, so a scale
+  or a bare note writes a file without a `voice` step.
+
+**Gate**
+- A decoder written in the test file reads back what the encoder produced: every
+  note-on is matched by a note-off, delta times sum to the expected length, and
+  the meta events carry the values asked for.
+- Golden byte comparison for one fixed pipeline, so accidental format drift is
+  caught rather than reasoned about.
+- `muse chord Cmaj7 | muse midi` into a terminal exits non-zero and writes
+  nothing to stdout.
+- A file from `muse scale G major | muse midi` opens in a DAW and shows seven
+  notes spelled to the key signature. Manual, once, recorded in the commit.
+
+---
+
+## Phase 9 — Remaining sinks, color, and the pipeline guarantee
+
+**Build**
+- The `json`, `csv`, `numbers` and `info` sinks, each reading field one only and
+  deriving the rest, per parking lot item A. `json` documented as unstable.
 - `--color auto|always|never`, `--plain` to drop annotation columns.
-- A JSON schema for each output type, per parking lot item A, documented as
-  unstable in `--help`.
 - Golden transcript tests running the real binary over the pipelines in
   `DESIGN.md` and comparing verbatim.
 - `README.md` with the worked examples.
 
 **Gate** the golden transcripts pass, so "output is valid input" is enforced
-rather than asserted.
+rather than asserted. `muse chords G major | muse json` produces complete chord
+objects, which is the proof that the text protocol carries the whole model.
 
 ---
 
@@ -225,3 +256,9 @@ produces a binary, which is a deliberate consequence of building the library
 first; resist adding a throwaway main earlier, because the previous attempt's
 CLI-shaped types leaked back into the theory layer and that is how `Chord`
 ended up carrying an `inversion` field.
+
+Phase 8 is the first point at which the tool is *useful* — a MIDI file in a DAW
+is a different kind of output than a column of chord symbols, and it is the
+phase most worth reaching. It is placed after the full transform surface because
+a pipeline ending in `midi` is only interesting if the pipeline in front of it
+can build something worth writing.

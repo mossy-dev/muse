@@ -349,12 +349,36 @@ Consequences worth stating:
   on a terminal; a pipe gets single-tab separation. Field one is byte-identical
   either way. `--color auto|always|never` overrides detection; `--plain`
   suppresses annotation columns.
-- **`--format text|json|csv|midi`** selects representation explicitly, defaulting
-  to `text`. Piping never silently changes it. `json` exists for callers who
-  want structure without parsing notation; it is not the pipeline format.
+- **There is no output format flag.** Notation is the only thing muse commands
+  emit. Anything else — JSON, CSV, a MIDI file — is produced by a sink, and
+  sinks are commands.
 - **Context that a name cannot carry is passed explicitly.** Roman numerals need
   a key, so commands that need one take `-k/--key G major`. Nothing is smuggled
   through an invisible channel.
+
+### Transforms and sinks
+
+Every command is one or the other, and which it is can be read off whether its
+output parses.
+
+A **transform** takes notation and emits notation, so it can appear anywhere in
+a chain. A **sink** emits something else — structured data, a binary file, prose
+— and therefore ends one. Making sinks ordinary commands rather than a
+`--format` flag keeps the distinction visible in `--help`, and it takes the
+representation question out of every transform: a transform has exactly one way
+to print itself.
+
+It also puts the pipeline protocol under load in a useful way. A sink reads
+field one and nothing else, exactly as a transform does, then derives everything
+it emits from the parsed datum. If `muse chords G major | muse json` can produce
+full chord objects, the text protocol is provably complete enough to reconstruct
+the model — the sinks are the invariant's test harness rather than a bypass
+around it.
+
+Annotation columns do not survive into a sink, because they never survive
+anywhere: a roman numeral is commentary relative to a key, not a property of the
+chord. Sinks take the same explicit context flags transforms do, so
+`muse json -k "G major"` gets degrees into the output by the normal route.
 
 ### One input rule
 
@@ -377,6 +401,8 @@ Reading a datum takes two more rules, both small enough to state completely:
 
 ## Command surface
 
+Transforms, which emit notation and compose freely:
+
 | Command | Purpose |
 |---|---|
 | `scale <root> [name]` | build a scale (default `major`) |
@@ -391,10 +417,23 @@ Reading a datum takes two more rules, both small enough to state completely:
 | `voice <close\|open\|drop2\|drop3\|shell>` | realize a chord as pitches |
 | `name <notes…>` | identify the chord or scale a note set forms |
 | `in <key>` | annotate input with its degrees in a key |
+
+Sinks, which end a chain:
+
+| Command | Purpose |
+|---|---|
+| `midi` | write a Standard MIDI File |
+| `json` | structured output for programs |
+| `csv` | one row per item |
+| `numbers` | bare MIDI note numbers, for scripts |
 | `info` | everything muse knows about the input |
 
 Deleted from the old surface: `sevenths` / `7ths`, which was `ChordsCmd` with a
 different default and duplicated its struct verbatim — now `chords --size 7`.
+
+Of the sinks, `csv` is the one carrying its weight least convincingly — it is a
+flatter `json` for a spreadsheet nobody has asked for yet. It stays for now and
+is the first thing to cut if the surface starts feeling wide.
 
 **`in` annotates and never transforms.** It adds roman numerals and degree
 labels relative to the key and leaves field one exactly as it found it, so it
@@ -408,6 +447,47 @@ listed `spread`, which was cut: `open` already means displacing alternate chord
 tones by an octave, and `spread` had no definition beyond a vague sense of being
 wider. A style with no crisp definition cannot be tested and does not belong on
 the surface.
+
+---
+
+## MIDI output
+
+`muse midi` is what makes the tool generative rather than only informative, and
+it is the reason the chain has an end worth reaching:
+
+```
+muse scale G major | muse chords | muse extend 7 | muse voice drop2 | muse midi > loop.mid
+```
+
+**It writes to stdout and refuses a terminal.** Positional arguments belong to
+the datum under the one input rule, so a filename cannot go there; redirection
+is the natural unix answer, with `-o FILE` for when it is not. Refusing to dump
+binary into a terminal gives TTY detection a third job, and like the other two —
+color, column padding — it is presentation only and never touches the model.
+
+**muse has a uniform grid, not rhythm.** This is a deliberate puncture of the
+non-goal below, fenced as narrowly as it can be: every item takes the same
+duration, laid end to end, and nothing else about time is expressible. No
+patterns, no swing, no velocity shaping, no second track. Defaults are 120bpm,
+4/4, velocity 80, channel 1, 480 ticks per quarter, format 0, one item per bar.
+`--tempo`, `--meter` and `--duration` move them; `--duration 1/4` is the usual
+one, since a scale reads better as quarter notes than as seven whole bars.
+
+Deliberately absent is `--bars N`. Fitting seven chords into eight bars has no
+obvious rule, and guessing at one would be the same mistake as the old design's
+placeholder table rows.
+
+**The key signature meta event is worth emitting.** MIDI collapses Eb and D# to
+note 63, so this is exactly where the library's spelling work would normally
+stop mattering. SMF carries a key signature event and DAWs read it to choose
+enharmonics, so when the pipeline knows the key, that spelling survives into the
+notation view of whatever it lands in.
+
+**Encoding lives in the library, writing lives in the CLI.** `smf.odin` produces
+a `[]byte` and returns it; `cli` writes the bytes. The rule that the library
+performs no I/O is what allows the encoder to be tested without a filesystem,
+and SMF is small enough — chunk headers, variable-length delta times, three meta
+events — that this costs nothing to arrange.
 
 `transpose` accepts interval names (`+m3`, `-P5`) as well as semitone counts.
 Semitones alone cannot determine spelling; interval names can, and the old
@@ -427,10 +507,12 @@ src/
     chord.odin          Chord, ChordTemplate table, identification
     voicing.odin        Voicing, inversion, drop and open voicings
     notation.odin       parse and print notation — the round trip
+    smf.odin            Standard MIDI File encoding to a byte slice
   cli/
     main.odin           dispatch only
     args.odin           argument grammar, the args-else-stdin rule
-    render.odin         columns, color, --format backends
+    render.odin         columns and color
+    sink.odin           midi, json, csv, numbers, info
     tty_unix.odin       terminal detection
     tty_windows.odin
 ```
@@ -502,7 +584,8 @@ sections they govern: the chord grammar and its quality/seventh rule, extension
 implication, the eleventh-against-third omission and `--literal`, root
 accidental binding, identification ranking, modal ambiguity, non-heptatonic
 harmonization, unspellable roots, the datum delimiter, `in` semantics, and the
-voicing octave. What follows is what genuinely remains.
+voicing octave. What follows is what genuinely remains, plus what MIDI output
+added on its way in.
 
 **A. The JSON schema.** The shape below is enough to build against, with a
 `type` discriminator on every object and `midi` present only where a register
@@ -515,8 +598,8 @@ exists — a chord has no octave, a voicing does.
 ```
 
 What is unsettled is whether this is a promise. Until muse is worth depending
-on programmatically, `--format json` is explicitly unstable and says so in
-`--help`. Revisit if anything ever consumes it.
+on programmatically, `muse json` is explicitly unstable and says so in `--help`.
+Revisit if anything ever consumes it.
 
 **B. Harmonizing by subset rather than by stacking.** For pentatonic and blues
 scales, a more useful question than "stack alternate members" is "which named
@@ -524,6 +607,18 @@ chords have all their tones in this scale". That is a different operation, not a
 better implementation of the current one, so it stays out of `chords` and waits
 for its own command — `fit`, or `chords --subset`. Deferred on scope, not on
 uncertainty.
+
+**D. Voice leading, and arpeggiation.** Both are `Voicing → Voicing`, so both
+fit the model exactly, and both would make MIDI output markedly more musical:
+`voice-lead` minimizing movement between successive chords so a progression
+stops leaping around in parallel root position, and `arp` spreading a voicing
+across time. Voice leading is the more valuable of the two and the more
+interesting to specify, since "minimal movement" needs a stated cost function.
+
+They are deferred rather than rejected. The line they sit just inside is the one
+in the non-goals: an operation on voicings is music theory, whereas rhythm
+patterns and humanization are a sequencer. Arpeggiation is the closest to that
+line, since it is the first feature that would want more than a uniform grid.
 
 **C. How much of the accepted-input table is worth carrying.** The grammar is
 settled but the alias set is a judgement call with no natural boundary: `Δ`,
@@ -537,8 +632,14 @@ fails to parse.
 ## Non-goals
 
 Audio synthesis or playback. Notation rendering. Tuning systems other than
-12-TET. Rhythm, meter, and duration. MIDI file I/O — MIDI *note numbers* are an
-output format, nothing more.
+12-TET. Reading MIDI files — muse writes them and does not parse them.
+
+Rhythm was a non-goal in the first draft of this document and is now a fenced
+one. `muse midi` needs time to exist, so a uniform grid exists: equal durations
+laid end to end, configurable in aggregate and in no other way. Patterns,
+swing, velocity shaping, multiple tracks, and anything resembling a sequencer
+stay out. The fence is the whole concession — see the MIDI section for where it
+sits.
 
 ---
 
