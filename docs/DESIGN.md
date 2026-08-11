@@ -334,7 +334,7 @@ D              V      D F# A
 Em             vi     E G B
 F#dim          vii°   F# A C
 
-$ muse scale G major | muse chords | muse extend 7 | muse notes
+$ muse scale G major | muse chords --size 7 | muse notes
 G B D F#
 A C E G
 ...
@@ -409,7 +409,6 @@ Transforms, which emit notation and compose freely:
 | `chord <symbol>` | build a chord from a symbol |
 | `chords [--size 3\|7\|9…]` | harmonize every degree of a scale |
 | `degree <n> [--size]` | harmonize one degree; accepts `IV`, `iv`, `4` |
-| `extend <n>` | grow chords on stdin to 7ths, 9ths, 13ths |
 | `notes` | reduce anything to its bare note list |
 | `interval <a> <b>` | name the interval between two notes |
 | `transpose <interval\|±semitones>` | transpose, preserving spelling |
@@ -434,6 +433,39 @@ An earlier draft also listed `csv`, cut for being a flatter `json` aimed at a
 spreadsheet nobody had asked for. `json` covers structured output and `numbers`
 covers the scripting case between them.
 
+### A transform needs no context its input does not carry
+
+An earlier draft listed `extend <n>`, growing chords on stdin to sevenths and
+beyond. It is cut, and the reason generalizes into a rule worth keeping.
+
+`muse chord C | muse extend 7` cannot be answered. Diatonically the answer is
+Cmaj7; by symbol convention a bare seventh is dominant, so C7. Resolving it
+needs a key, and the key is exactly what the chord symbol `C` does not carry.
+
+The key is not missing from the pipeline, though — it *is* the datum, right up
+until a collection expands into its members. `muse scale G major` puts `G major`
+in field one, `chords` reads it, and the key evaporates only because `chords`
+replaces one collection with seven members. So the problem is not transport. The
+problem is that harmonizing and extending were split across that expansion, and
+`chords --size 7` does both on the near side of it, where the key is still
+present.
+
+Hence the rule: **if a transform needs context its input datum does not carry,
+the pipeline was split in the wrong place.** Fixing the split is available;
+threading hidden state is what the old `muse:` protocol did, and re-earning that
+mistake for one command would be a poor trade.
+
+### Where a key comes from
+
+Nothing on the surface currently needs a key it is not handed: `in` takes one as
+its argument, `degree` and `chords` read the scale from their input. When
+something does need one, it takes `-k/--key`, defaulting to C major.
+
+Config files and an environment variable are the other conventional paths and
+both are plausible later. Neither is in scope until muse has a packaging story,
+and adding a config format before there is a platform to install it on would be
+building the second half of a bridge.
+
 **`in` annotates and never transforms.** It adds roman numerals and degree
 labels relative to the key and leaves field one exactly as it found it, so it
 can sit anywhere in a pipeline without changing what the next command receives.
@@ -455,7 +487,7 @@ the surface.
 it is the reason the chain has an end worth reaching:
 
 ```
-muse scale G major | muse chords | muse extend 7 | muse voice drop2 | muse midi > loop.mid
+muse scale G major | muse chords --size 7 | muse voice drop2 | muse midi > loop.mid
 ```
 
 **It writes to stdout and refuses a terminal.** Positional arguments belong to
@@ -607,6 +639,25 @@ better implementation of the current one, so it stays out of `chords` and waits
 for its own command — `fit`, or `chords --subset`. Deferred on scope, not on
 uncertainty.
 
+**C. A key that persists through a chain.** Considered and declined, recorded
+here so it is revisited on evidence rather than re-argued from scratch.
+
+The idea: a key introduced anywhere in a pipeline stays in effect downstream
+until replaced, so commands needing one stop having to be told. The strongest
+implementation is a **key line** — `in G major` prepends a line whose datum is
+`G major`, and downstream commands read it if present. That keeps the stream
+all-notation, since a scale is a legitimate datum, so it is a real mechanism
+rather than a hack.
+
+It was declined on cost. Line one becomes special, `notes` and `midi` and every
+other command grow a branch for it, and "any intermediate line can be typed by
+hand" stops holding. That last one is the whole pipeline invariant. Against
+that, the benefit is currently zero: with `extend` cut, no command needs a key
+it is not handed.
+
+Revisit when a *third* command wants one — `voice-lead` and `fit` are the likely
+candidates — at which point the trade is being made against real demand.
+
 **D. Voice leading, and arpeggiation.** Both are `Voicing → Voicing`, so both
 fit the model exactly, and both would make MIDI output markedly more musical:
 `voice-lead` minimizing movement between successive chords so a progression
@@ -619,7 +670,7 @@ in the non-goals: an operation on voicings is music theory, whereas rhythm
 patterns and humanization are a sequencer. Arpeggiation is the closest to that
 line, since it is the first feature that would want more than a uniform grid.
 
-**C. How much of the accepted-input table is worth carrying.** The grammar is
+**E. How much of the accepted-input table is worth carrying.** The grammar is
 settled but the alias set is a judgement call with no natural boundary: `Δ`,
 `ø`, `°`, `-` and `+` are clearly worth accepting, Unicode double accidentals
 probably, and beyond that it is guesswork about notation nobody in this repo

@@ -71,7 +71,7 @@ rules into an enumeration a parser can be tested against.
 - Every accepted input, with its canonical output and resulting interval set
   beside it. This table is the phase 3 test fixture, so it is the deliverable
   and not an illustration.
-- The alias set, per parking lot item C: `Δ`, `ø`, `°`, `-`, `+`, `M`, `min`,
+- The alias set, per parking lot item E: `Δ`, `ø`, `°`, `-`, `+`, `M`, `min`,
   `maj`, Unicode accidentals. First cut only, grown when something real fails.
 - Worked derivations for the awkward cases: `C13`, `C11`, `Cm11`, `C6`, `C69`,
   `Cadd9`, `C7sus4`, `C7b9#11`, `Cm7b5`, `Cdim7`, `CmMaj7`, `C/E`, `C/D`.
@@ -188,8 +188,8 @@ First phase with a running binary. `just build` works again from here.
 
 ## Phase 7 — Full transform surface
 
-**Build** `chords`, `degree`, `extend`, `transpose`, `invert`, `voice`, `name`,
-`in`, and `help`.
+**Build** `chords`, `degree`, `transpose`, `invert`, `voice`, `name`, `in`, and
+`help`.
 
 **Gate** every transform reads its operand from arguments and from stdin, and
 every transform's output re-parses as another transform's input. The transform
