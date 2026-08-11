@@ -57,28 +57,30 @@ of the claim that output is valid input.
 ## Phase 2 — Chord symbol specification *(document only, no code)*
 
 The riskiest piece, and the one the old design collapsed under. It gets written
-down and agreed before a parser is attempted.
+down before a parser is attempted.
+
+The rules are now settled in `DESIGN.md` — the grammar production, quality
+picking the triad and the seventh, extension numbers stacking odd degrees, `6`
+and `add` and `no` as stated exceptions, the eleventh-against-third omission and
+`--literal`, and greedy root binding with a warning. This phase turns those
+rules into an enumeration a parser can be tested against.
 
 **File:** `docs/CHORD-SYMBOLS.md`
 
-**Decide and tabulate**
-- The grammar, unambiguously: root, quality, extension number, modifiers,
-  parenthesised alterations, slash bass.
-- Which extension numbers imply which lower tones. `C9` implies a dominant
-  seventh; `C6` implies no seventh; `Cm11` implies a ninth. This is the exact
-  place the old `[ChordQuality][ChordExtension]` outer product came from, so
-  the rule must be stated as a rule and not as a table of outcomes.
-- Whether `C13` emits the eleventh, and generally whether muse emits the full
-  stack or the conventional one. Recommendation in the parking lot.
-- The `Cb5` ambiguity — root `Cb` with a fifth, or `C` with a flatted fifth —
-  and the binding rule that resolves it.
-- Canonical output spelling for every alias set (`m7b5` / `ø`, `Δ` / `maj7`,
-  `-` / `m`, `+` / `aug`).
-- The full accepted-input table, with the canonical output beside each entry.
-  This table is the phase 3 test fixture.
+**Write**
+- Every accepted input, with its canonical output and resulting interval set
+  beside it. This table is the phase 3 test fixture, so it is the deliverable
+  and not an illustration.
+- The alias set, per parking lot item C: `Δ`, `ø`, `°`, `-`, `+`, `M`, `min`,
+  `maj`, Unicode accidentals. First cut only, grown when something real fails.
+- Worked derivations for the awkward cases: `C13`, `C11`, `Cm11`, `C6`, `C69`,
+  `Cadd9`, `C7sus4`, `C7b9#11`, `Cm7b5`, `Cdim7`, `CmMaj7`, `C/E`, `C/D`.
+- The exact condition that triggers the ambiguity warning: the root letter is
+  followed immediately by an accidental, and the remainder also parses under the
+  reading where that accidental is a modifier.
 
-**Gate** the document exists, the ambiguities above have stated resolutions,
-and the corresponding parking-lot entries in `DESIGN.md` are struck.
+**Gate** every rule in `DESIGN.md` appears in the table with at least one worked
+example, and no entry in the table contradicts another.
 
 ---
 
@@ -91,15 +93,21 @@ and the corresponding parking-lot entries in `DESIGN.md` are struck.
   printing, parsing and identification.
 - `chord_make(root, template)`, `chord_notes(chord)`, `chord_add_interval`.
 - `chord_parse` / `chord_string` implementing phase 2's grammar.
-- `chord_identify(notes) -> (Chord, bool)` with a stated ranking rule for the
-  cases where several readings fit — Am7 and C6 are the same four notes, and
-  the rule that picks between them is written in the doc before it is coded.
+- `chord_omissions(chord)` deriving the dropped degrees. A `Chord` always holds
+  the full interval set; omission happens when it is realized into notes, which
+  is what keeps `--literal` a rendering flag rather than a second chord type.
+- `chord_identify(notes) -> (Chord, bool)`, applying the ranking in `DESIGN.md`.
 
 **Gate**
 - Every row of phase 2's accepted-input table parses to the expected chord and
   prints back as the canonical spelling.
 - `chord_identify(chord_notes(c)) == c` for every template × all 12 roots.
 - `chord_parse(chord_string(c)) == c` for the same cross product.
+- **Both realizations identify alike.** The idiomatic and literal note sets of
+  the same chord must both identify as that chord, or `--literal` breaks the
+  pipeline: `muse chord C13 --literal | muse name` has to say `C13`.
+- A C E G identifies as Am7, not C6, and reversing the input to C E G A gives
+  C6 — the ranking's first rule doing its job.
 - Slash chords round trip, including a bass that is not a chord tone.
 
 ---
@@ -115,7 +123,8 @@ and the corresponding parking-lot entries in `DESIGN.md` are struck.
 - `scale_harmonize(scale, size)` over every degree.
 - Roman numeral degree labels, with case and suffix from the resolved chord
   quality.
-- `scale_identify(notes)` — subject to the modal ambiguity parking-lot entry.
+- `scale_identify(notes)`, rooted at the first note supplied, with the other
+  modal readings as annotation.
 
 **Gate**
 - Harmonizing every seven-note template reproduces the classical tables the old
@@ -124,8 +133,11 @@ and the corresponding parking-lot entries in `DESIGN.md` are struck.
 - Every note of every harmonized chord is a member of its parent scale.
 - Every seven-note scale spells each letter exactly once, across all 12 roots
   and every heptatonic template.
-- Non-heptatonic scales harmonize per the parking-lot decision, and the
-  pentatonic and blues templates are not special-cased to fail.
+- Non-heptatonic scales harmonize rather than failing: every degree of a
+  pentatonic or blues scale produces a line, named where a name exists and
+  carrying its note list as the datum where none does.
+- `muse scale G## harmonic` reports the degree that outran double accidentals
+  and suggests the enharmonic root, rather than emitting a wrong spelling.
 
 ---
 
@@ -135,7 +147,8 @@ and the corresponding parking-lot entries in `DESIGN.md` are struck.
 
 **Build**
 - `Voicing` over `[]Pitch`, ordered low to high.
-- `voicing_close(chord, octave)` as the realization entry point.
+- `voicing_close(chord, octave)` as the realization entry point, defaulting the
+  bass to octave 4 so a close C major triad is MIDI 60, 64, 67.
 - `voicing_invert(v, n)`, valid for any n on any voicing.
 - `voicing_drop(v, n)` covering drop-2 and drop-3, `voicing_shell`,
   `voicing_open`.
@@ -189,7 +202,8 @@ in `DESIGN.md` and the implemented set match exactly.
 **Build**
 - `--format text|json|csv|midi`, defaulting to text and never switching itself.
 - `--color auto|always|never`, `--plain` to drop annotation columns.
-- A JSON schema for each output type, per the parking-lot entry.
+- A JSON schema for each output type, per parking lot item A, documented as
+  unstable in `--help`.
 - Golden transcript tests running the real binary over the pipelines in
   `DESIGN.md` and comparing verbatim.
 - `README.md` with the worked examples.

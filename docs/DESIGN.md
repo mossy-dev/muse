@@ -168,6 +168,12 @@ for any `n`, on any voicing, including ones muse did not build. Slash notation
 (`Cmaj7/E`) is a property of `Chord.bass` and is set deliberately, not inferred
 from note order.
 
+Realizing a chord has to put it somewhere, and the default is the octave
+containing middle C: the bass note takes octave 4, so a close C major triad is
+MIDI 60, 64, 67. `--octave` moves it. Choosing 4 rather than a lower register is
+partly that close voicings then sit where a reader expects them and partly that
+60 is the number everyone can check at a glance.
+
 ---
 
 ## Templates: one table per concept, both directions
@@ -200,27 +206,106 @@ fit. `muse name C E G B` → `Cmaj7`. Constructing and identifying become invers
 functions over one table, which makes them cheap to property-test against each
 other.
 
+### Ranking among equal identifications
+
+A, C, E and G are Am7 and are equally C6. The notes do not choose, so the rule
+does, in this order:
+
+1. Prefer the reading rooted on the lowest note supplied. Input order carries
+   information and discarding it would be perverse.
+2. Prefer a tertian reading — a clean stack of thirds from the root — over one
+   that is not.
+3. Prefer the reading with fewer alterations in its symbol.
+4. Prefer the shorter canonical symbol.
+5. Break remaining ties by root pitch class ascending, so output is stable
+   across runs.
+
+Only the winner is printed; `--all` lists every match in this order. For
+A C E G rules 1 and 2 agree on Am7, which is the answer a musician gives.
+
+Scale identification uses the same first rule and stops there: the answer is
+rooted at the first note supplied, so C D E F G A B is C major and not A minor.
+The other rotations are real readings and appear as annotation, or as their own
+lines under `--all`.
+
 ### Chord symbols are parsed, not enumerated
 
 `ChordExtension` as an enum forces a table for every quality it might combine
 with. Real chord symbols are a small grammar:
 
 ```
-symbol := root quality? extension? modifier* ("/" bass)?
+symbol   := root quality? extension? modifier* ("/" bass)?
+quality  := "m" | "min" | "-" | "maj" | "M" | "Δ" | "dim" | "°" | "aug" | "+" | "ø"
+extension:= "5" | "6" | "7" | "9" | "11" | "13"
+modifier := "(" alteration ")" | alteration | "sus" ("2"|"4")? | "add" number | "no" number
 ```
 
 `C7b9#11/E` parses to a root, a base template, and a list of alterations applied
 to it. Adding `b13` costs one modifier rule rather than thirteen table rows.
+
+**Quality picks the triad and the seventh; the extension number says how high to
+stack.** This is the rule the old outer-product table was a frozen enumeration
+of. A quality contributes a triad and, when a seventh or higher is called for,
+which seventh: none by default, minor for a bare dominant, major for `maj`,
+diminished for `dim`, minor for `m` and `ø`. An extension number then includes
+every odd degree from the seventh up to it, so `C9` is a dominant seventh with a
+ninth and `Cm11` carries its ninth too.
+
+Three tokens behave differently and are stated as exceptions rather than
+absorbed into the rule: `6` substitutes a sixth for the seventh instead of
+stacking, `add` contributes its degree without the intervening stack, and `no`
+removes one.
+
+**A natural eleventh and a major third are mutually exclusive.** In an eleventh
+chord the eleventh wins and the third is dropped; in a thirteenth chord the
+third wins and the eleventh is dropped. This is convention, but it is also the
+better spelling — the two are a minor ninth apart and the clash is why players
+omit one. The rule is deterministic, so identification stays symmetric, and the
+dropped degree is named in an annotation column rather than vanishing:
+
+```
+$ muse chord C13
+C13     C E G Bb D A      omits 11
+
+$ muse chord C11
+C11     C G Bb D F        omits 3
+```
+
+`--literal` suppresses the omission and emits the full stack. It is a rendering
+flag only: a `Chord` always holds the complete interval set, and the omission is
+applied when the chord is realized into notes. `muse chord C13` and
+`muse chord C13 --literal` are the same value printed two ways, so the symbol
+round trip is unaffected, and identification recognizes both note sets as `C13`.
+
+**An accidental immediately after the root letter binds to the root.** The root
+is read by the same note parser used everywhere else, so `C#11` is a C-sharp
+eleventh chord and `Cb5` is a C-flat power chord; C with a sharp eleventh is
+written `C(#11)`. The ambiguity exists only when nothing separates the root from
+the modifier — in `C7#11` the `7` closes the root and no question arises. Where
+a symbol admits both readings, muse says how it read it:
+
+```
+$ muse chord C#11
+C#11    C# E# G# B D#
+note: read as root C#; write C(#11) for C with a sharp eleventh
+```
+
+The warning goes to stderr, so it never contaminates a pipeline.
 
 ### Harmonization is computed
 
 `scale_chord_at(scale, degree, size)` stacks alternating scale members from the
 degree, wrapping with octave displacement. For seven-note scales this is
 stacking thirds and reproduces the old `DIATONIC_TRIADS` /
-`DIATONIC_SEVENTHS` tables exactly. For other scales it produces whatever it
-produces, which is then run through chord identification — so a pentatonic stack
-is named honestly (a sus or quartal voicing, or an unnamed interval set) rather
-than being a zeroed placeholder row that returns `ok = false`.
+`DIATONIC_SEVENTHS` tables exactly.
+
+For scales that are not heptatonic the same stacking applies, and the result is
+run through chord identification. Where a name exists it is used. Where none
+does, the datum for that line is the note list itself, which is a legitimate
+datum that downstream commands already accept, with the interval pattern as
+annotation. Nothing is special-cased to fail, and no zeroed table row stands in
+for a decision — those were the previous design's answer and they are the reason
+`muse chords C majpent` returned nothing at all.
 
 ---
 
@@ -230,8 +315,7 @@ There is no `muse:` protocol. Output lines are notation, and notation parses.
 
 - One item per line. **Field one is the datum**, delimited by a tab rather than
   by whitespace, since a datum may itself contain spaces; anything after it is
-  annotation for humans and is discarded on input. Parking lot item 9 covers
-  reading back a line that was formatted for a terminal.
+  annotation for humans and is discarded on input.
 - Field one is always a canonical *name* (`G major`, `Am7`, `C E G`), never a
   format only muse understands.
 - Annotation columns carry roman numerals, note lists, interval names, MIDI
@@ -279,6 +363,16 @@ reads stdin. That single rule lives in one helper and replaces
 `read_root_quality`'s `has_fallback` plumbing and each subcommand's fallback
 ladder.
 
+Reading a datum takes two more rules, both small enough to state completely:
+
+- **From arguments:** join the remaining positional arguments with single spaces
+  and parse the result. `muse chord C E G` and `muse chord "C E G"` are the same
+  request, and no command needs to know how the shell split its input.
+- **From a line:** if the line contains a tab, the datum is everything before
+  the first one; otherwise the whole line is the datum. A piped line always has
+  its tab. A line copied off a terminal is space-padded rather than tabbed, but
+  it is also being retyped as arguments by then, where the join rule applies.
+
 ---
 
 ## Command surface
@@ -294,13 +388,26 @@ ladder.
 | `interval <a> <b>` | name the interval between two notes |
 | `transpose <interval\|±semitones>` | transpose, preserving spelling |
 | `invert <n>` | invert a voicing |
-| `voice <close\|open\|drop2\|drop3\|shell\|spread>` | realize a chord as pitches |
+| `voice <close\|open\|drop2\|drop3\|shell>` | realize a chord as pitches |
 | `name <notes…>` | identify the chord or scale a note set forms |
-| `in <key>` | reinterpret input in a key; adds roman numerals |
+| `in <key>` | annotate input with its degrees in a key |
 | `info` | everything muse knows about the input |
 
 Deleted from the old surface: `sevenths` / `7ths`, which was `ChordsCmd` with a
 different default and duplicated its struct verbatim — now `chords --size 7`.
+
+**`in` annotates and never transforms.** It adds roman numerals and degree
+labels relative to the key and leaves field one exactly as it found it, so it
+can sit anywhere in a pipeline without changing what the next command receives.
+Respelling notes to suit a key signature is a different operation on different
+data, and folding it into `in` would make a commentary command silently mutate
+its input.
+
+`voice` offers `close`, `open`, `drop2`, `drop3` and `shell`. An earlier draft
+listed `spread`, which was cut: `open` already means displacing alternate chord
+tones by an octave, and `spread` had no definition beyond a vague sense of being
+wider. A style with no crisp definition cannot be tested and does not belong on
+the surface.
 
 `transpose` accepts interval names (`+m3`, `-P5`) as well as semitone counts.
 Semitones alone cannot determine spelling; interval names can, and the old
@@ -351,6 +458,14 @@ failure. Exit codes: `0` success, `1` usage or parse error, `2` a well-formed
 request with no musical answer (a degree beyond the scale, an inversion of a
 single note).
 
+**Unspellable results.** `note_add_interval` refuses anything needing a triple
+accidental, and a few root and template pairings reach that: G## harmonic minor
+wants an F###. Reaching it at all takes a root that is already doubly altered,
+since every scale on a singly altered root stays within double accidentals. The
+CLI reports which degree failed and, when respelling the root enharmonically
+succeeds, names that root as the suggestion. It does not silently respell —
+`muse scale G## harmonic` asked a precise question and deserves a precise no.
+
 **Tables.** `@(rodata)` stays for genuinely arbitrary data — the template arrays,
 letter-to-semitone, roman numerals. It goes for anything derivable.
 
@@ -379,74 +494,43 @@ run by `just test`, with the properties the model makes available:
 
 ---
 
+
 ## Parking lot
 
-Decisions this design deliberately does not make. Each carries a proposed
-default so that nothing here blocks starting; each must be settled before the
-phase that depends on it, per `PLAN.md`. Strike entries as they are resolved.
+Twelve entries opened with this design. Nine are now settled and live in the
+sections they govern: the chord grammar and its quality/seventh rule, extension
+implication, the eleventh-against-third omission and `--literal`, root
+accidental binding, identification ranking, modal ambiguity, non-heptatonic
+harmonization, unspellable roots, the datum delimiter, `in` semantics, and the
+voicing octave. What follows is what genuinely remains.
 
-**1. The chord symbol grammar.** `symbol := root quality? extension? modifier*
-("/" bass)?` is a sketch, not a specification. Phase 2 writes the real one.
-Everything from here to item 4 is part of it and is listed separately only
-because each needs its own answer.
+**A. The JSON schema.** The shape below is enough to build against, with a
+`type` discriminator on every object and `midi` present only where a register
+exists — a chord has no octave, a voicing does.
 
-**2. Which lower tones an extension implies.** `C9` means a dominant seventh
-with a ninth; `Cm11` implies the ninth as well; `C6` implies no seventh at all.
-So an extension number is not a note, it is an instruction to stack up to that
-number, with exceptions. The rule must be stated as a rule — the old
-`[ChordQuality][ChordExtension]` table was what happened when it was not.
+```json
+{ "type": "chord", "symbol": "Cmaj7", "root": "C", "bass": null,
+  "notes": ["C","E","G","B"], "intervals": ["P1","M3","P5","M7"],
+  "omitted": [] }
+```
 
-**3. Whether muse emits the full stack or the conventional one.** A literal
-`C13` has seven notes including an eleventh that no player voices. Emitting the
-full stack is consistent and makes identification symmetric; emitting the
-conventional subset matches what a musician expects to read. *Proposed:* emit
-the full stack, and let `voice` thin it, since a theory tool that silently drops
-tones cannot be trusted as the input to another command.
+What is unsettled is whether this is a promise. Until muse is worth depending
+on programmatically, `--format json` is explicitly unstable and says so in
+`--help`. Revisit if anything ever consumes it.
 
-**4. The `Cb5` binding ambiguity.** Root C-flat with a fifth, or C with a
-flatted fifth. *Proposed:* an accidental binds greedily to the letter, so `Cb5`
-is a C-flat power chord and the altered triad must be written `C(b5)`.
+**B. Harmonizing by subset rather than by stacking.** For pentatonic and blues
+scales, a more useful question than "stack alternate members" is "which named
+chords have all their tones in this scale". That is a different operation, not a
+better implementation of the current one, so it stays out of `chords` and waits
+for its own command — `fit`, or `chords --subset`. Deferred on scope, not on
+uncertainty.
 
-**5. Ranking among equally valid identifications.** A, C, E, G is Am7 and also
-C6. The notes alone do not choose. *Proposed:* prefer the reading rooted on the
-lowest supplied note, then the one built from stacked thirds, then the smaller
-template — and report only the winner unless `--all` is given. The rule needs
-writing down before `chord_identify` is coded, not after.
-
-**6. Modal ambiguity in scale identification.** C major, A natural minor and D
-dorian are one pitch-class set. *Proposed:* root the answer at the first note
-supplied and report the other readings as annotation.
-
-**7. Harmonizing non-heptatonic scales.** Stacking alternating members of a
-pentatonic scale is not stacking thirds, and the resulting interval sets often
-have no chord symbol. *Proposed:* emit them anyway, named by identification
-where a name exists and by interval list where none does. What must not happen
-is the old behaviour — a zeroed table row and `ok = false`.
-
-**8. Roots that outrun double accidentals.** Some template and root pairings
-need a triple sharp, and `note_add_interval` already refuses them. Whether the
-CLI should then error, or respell the root enharmonically and say so, is
-undecided. *Proposed:* error, naming the degree that failed, and suggest the
-enharmonic root.
-
-**9. Where the datum ends on an output line.** Field one may itself contain
-spaces — `muse notes` emits `G B D` as a single datum — so the delimiter is a
-tab, not whitespace. On a terminal, columns are space-padded instead, which
-means a line copied off a terminal and pasted back as an argument has no tab in
-it. *Proposed:* on input, split on tab when one is present, otherwise take the
-whole line and attempt to parse it as a collection. Confirm this survives
-contact with the phase 8 golden transcripts.
-
-**10. The JSON schema.** `--format json` is specified to exist and nothing more.
-It needs a shape per output type, and a decision on whether it is stable enough
-to promise.
-
-**11. `muse in <key>`.** Reinterpreting input in a key is in the command table
-but its semantics are hand-waved. Does it respell notes, add roman numerals,
-filter to diatonic members, or all three?
-
-**12. Voicing details.** The default octave for realizing a chord (*proposed:*
-C4 as the lowest chord tone) and what `spread` means as distinct from `open`.
+**C. How much of the accepted-input table is worth carrying.** The grammar is
+settled but the alias set is a judgement call with no natural boundary: `Δ`,
+`ø`, `°`, `-` and `+` are clearly worth accepting, Unicode double accidentals
+probably, and beyond that it is guesswork about notation nobody in this repo
+writes. Phase 2 enumerates a first cut and the table grows when something real
+fails to parse.
 
 ---
 
