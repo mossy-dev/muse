@@ -31,7 +31,7 @@ the `justfile` `test` recipe, and the removal of the five obsolete sources.
 
 ---
 
-## Phase 1 — Notation for notes and pitches
+## Phase 1 — Notation for notes and pitches *(complete)*
 
 The smallest layer that makes everything after it readable, and the first half
 of the claim that output is valid input.
