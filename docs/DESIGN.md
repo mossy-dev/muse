@@ -350,8 +350,8 @@ Consequences worth stating:
   either way. `--color auto|always|never` overrides detection; `--plain`
   suppresses annotation columns.
 - **There is no output format flag.** Notation is the only thing muse commands
-  emit. Anything else — JSON, CSV, a MIDI file — is produced by a sink, and
-  sinks are commands.
+  emit. Anything else — JSON, a MIDI file — is produced by a sink, and sinks
+  are commands.
 - **Context that a name cannot carry is passed explicitly.** Roman numerals need
   a key, so commands that need one take `-k/--key G major`. Nothing is smuggled
   through an invisible channel.
@@ -424,16 +424,15 @@ Sinks, which end a chain:
 |---|---|
 | `midi` | write a Standard MIDI File |
 | `json` | structured output for programs |
-| `csv` | one row per item |
 | `numbers` | bare MIDI note numbers, for scripts |
 | `info` | everything muse knows about the input |
 
 Deleted from the old surface: `sevenths` / `7ths`, which was `ChordsCmd` with a
 different default and duplicated its struct verbatim — now `chords --size 7`.
 
-Of the sinks, `csv` is the one carrying its weight least convincingly — it is a
-flatter `json` for a spreadsheet nobody has asked for yet. It stays for now and
-is the first thing to cut if the surface starts feeling wide.
+An earlier draft also listed `csv`, cut for being a flatter `json` aimed at a
+spreadsheet nobody had asked for. `json` covers structured output and `numbers`
+covers the scripting case between them.
 
 **`in` annotates and never transforms.** It adds roman numerals and degree
 labels relative to the key and leaves field one exactly as it found it, so it
@@ -512,7 +511,7 @@ src/
     main.odin           dispatch only
     args.odin           argument grammar, the args-else-stdin rule
     render.odin         columns and color
-    sink.odin           midi, json, csv, numbers, info
+    sink.odin           midi, json, numbers, info
     tty_unix.odin       terminal detection
     tty_windows.odin
 ```

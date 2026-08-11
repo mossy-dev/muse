@@ -231,7 +231,7 @@ generative. Depends on phase 5 for realization and phase 6 for writing bytes.
 ## Phase 9 — Remaining sinks, color, and the pipeline guarantee
 
 **Build**
-- The `json`, `csv`, `numbers` and `info` sinks, each reading field one only and
+- The `json`, `numbers` and `info` sinks, each reading field one only and
   deriving the rest, per parking lot item A. `json` documented as unstable.
 - `--color auto|always|never`, `--plain` to drop annotation columns.
 - Golden transcript tests running the real binary over the pipelines in
