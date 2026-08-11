@@ -18,10 +18,11 @@ are C unless a row says otherwise.
 symbol     := root quality? extension? modifier* bass?
 root       := letter accidental*                 ; note.odin's parser, greedy
 quality    := "m" | "min" | "-" | "maj" | "M" | "Δ"
-            | "mMaj" | "mmaj" | "minMaj" | "mΔ" | "-Δ"
+            | "mMaj" | "mmaj" | "minMaj" | "minmaj" | "mΔ" | "-Δ"
+            | "m(maj7)" | "min(maj7)" | "-(maj7)"
             | "dim" | "°" | "aug" | "+" | "ø" | "ø7"
 extension  := "5" | "6" | "69" | "6/9" | "7" | "9" | "11" | "13"
-modifier   := alteration | sus | add | omit | "(" modifier ("," modifier)* ")"
+modifier   := alteration | sus | add | omit | "(" modifier (","? modifier)* ")"
 alteration := "b5" | "#5" | "b9" | "#9" | "#11" | "b13"
 sus        := "sus" ("2" | "4")?                 ; bare "sus" is "sus4"
 add        := "add" ("2"|"4"|"6"|"9"|"11"|"13")
@@ -32,7 +33,8 @@ bass       := "/" root
 Parsing is left to right and each slot is matched longest-first: `min` before
 `m`, `maj` before `M`, `69` before `6`, `13` before `1`. The quality and the
 extension appear at most once each; modifiers repeat freely. Unicode accidentals
-(`♭ ♯ 𝄫 𝄪`) and `x` are read anywhere a root is read, and are emitted as ASCII.
+(`♭ ♯ 𝄫 𝄪`) and `x` are read anywhere a root is read, `♭` and `♯` are read in an
+alteration too, and all of them are emitted as ASCII.
 Roots are uppercase — `cmaj7` is a parse error, because `c` is not a letter the
 note parser accepts.
 
@@ -368,6 +370,29 @@ underneath, and phase 5 puts it at the bottom of a realization.
 | `C𝄪` | `C##` | `P1 M3 P5` | C## E## G## | |
 | `Cx7` | `C##7` | `P1 M3 P5 m7` | C## E## G## B# | |
 
+### 8.9 The template set
+
+The interval sets that carry a name, and therefore the only answers
+`chord_identify` can give. They are enumerated as `CHORD_TEMPLATES` in
+`chord.odin`, with the intervals above:
+
+```
+(major)  m  dim  aug  sus2  sus4  5
+6  m6  69  m69
+7  maj7  m7  mMaj7  dim7  m7b5  aug7  maj7#5  7b5  7sus4  add9  madd9
+9  maj9  m9  mMaj9  m9b5
+11  m11  maj11  m11b5
+13  m13  maj13
+```
+
+Everything else in section 8 is constructible, printable and re-parseable, but
+unnameable: `C7b9` has a canonical spelling and no template. See section 10.
+
+No two of these realize alike, in either their full or their idiomatic form.
+That is what keeps identification single-valued, and it is why `9sus4` is absent
+— its notes are `C11`'s idiomatic realization exactly, and a table holding both
+would have to guess which one a reader meant.
+
 ---
 
 ## 9. Worked derivations
@@ -431,15 +456,18 @@ bass is stored on the chord and consumed at realization. `chord_string` prints
 
 **`C/D`** — same shape, but D is not a chord tone. Nothing about the parse
 changes; the annotation column says the bass is outside the chord, and
-realization puts D underneath C E G.
+realization puts D underneath C E G. Note that the symbol round trips while the
+*notes* do not: D C E G identifies as `Cadd9/D`, because a reading that accounts
+for every note beats one that sets a note aside, and the two chords are the same
+four notes. The symbol is the datum, and it survives.
 
 ---
 
 ## 10. What this table does not settle
 
-**Identification is template matching.** `chord_identify` searches the template
-table — the sets whose canonical column above is a bare template symbol — in both
-their full and idiomatic realizations, and applies `DESIGN.md`'s ranking. So
+**Identification is template matching.** `chord_identify` searches the templates
+of section 8.9 in both their full and idiomatic realizations, and applies
+`DESIGN.md`'s ranking. So
 `C E G Bb D A` identifies as `C13` even though six of the thirteenth's seven
 intervals are present, and `A C E G` identifies as `Am7` rather than `C6` by the
 first ranking rule. A set built only by alteration, such as `C E G Bb Db`, has no
@@ -471,9 +499,11 @@ stdout.
 | `4C` | a symbol begins with a root |
 | `C10` | `10` is not an extension |
 | `Cm5` | `5` deletes the third, so it takes no quality |
+| `CmMaj` | `mMaj` says which seventh, so it needs one; write `CmMaj7` |
+| `CmMaj6` | same, and `6` is not a seventh |
 | `C7b7` | `b7` is not an alteration |
-| `C#4` | `#4` is not an alteration; write `#11` |
-| `Cb11` | `b11` is not an alteration |
+| `C#4` | `4` is not an extension, and the root took the sharp; write `C(#11)` |
+| `C7b11` | `b11` is not an alteration |
 | `Cadd` | `add` needs a degree |
 | `Cadd3` | `3` is not an addable degree; use the quality |
 | `Cno` | `no` needs a degree |

@@ -92,7 +92,7 @@ notes, and opened parking lot item F on naming chords no template matches.
 
 ---
 
-## Phase 3 — Chords
+## Phase 3 — Chords *(complete)*
 
 **Files:** `src/muse/chord.odin`, `src/muse/chord_test.odin`
 
@@ -117,6 +117,20 @@ notes, and opened parking lot item F on naming chords no template matches.
 - A C E G identifies as Am7, not C6, and reversing the input to C E G A gives
   C6 — the ranking's first rule doing its job.
 - Slash chords round trip, including a bass that is not a chord tone.
+
+Built, 15 tests. Three things the gates did not anticipate, each recorded in
+`CHORD-SYMBOLS.md`:
+
+- **Template realizations have to be pairwise distinct**, or identification is
+  ambiguous at a single root and the round trip fails for whichever template
+  loses. `9sus4` was cut for realizing exactly as `C11` does. A test asserts the
+  property, and it is what leaves DESIGN's ranking rules 2 to 5 with nothing to
+  arbitrate: only rule 1, the root taken from input order, is implemented.
+- **A slash chord's notes need not round trip even though its symbol does.**
+  D C E G is `C/D` and equally `Cadd9/D`, and identification prefers the reading
+  that accounts for every note. The symbol is the datum, so the pipeline holds.
+- **`chord_add_interval` returns false when the result has no template**, since
+  naming a set that is a template plus an alteration is parking lot item F.
 
 ---
 
