@@ -163,7 +163,7 @@ Built, 15 tests. Three things the gates did not anticipate, each recorded in
 
 ---
 
-## Phase 5 — Voicings
+## Phase 5 — Voicings *(complete; taken before phase 4)*
 
 **Files:** `src/muse/voicing.odin`, `src/muse/voicing_test.odin`
 
@@ -182,6 +182,27 @@ Built, 15 tests. Three things the gates did not anticipate, each recorded in
 - Drop-2 on a four-note close voicing moves the second voice from the top down
   an octave and nothing else.
 - `chord_identify` on a voicing's pitch classes returns the source chord.
+
+Built, 14 tests. Taken out of order: voicings need chords and pitches and
+nothing a scale provides, so phase 4 is the only one still open behind the CLI.
+
+Two decisions the build settled:
+
+- **Realization order lives in `chord_notes`, not in the voicing code.** A close
+  voicing is that note list with octaves attached, one voice per note in the
+  lowest octave that clears the one below. That forced a correction to phase 3:
+  a bass that is already a chord tone now rotates the stack to start on itself
+  rather than being moved to the front of it, so `C/E` reads E G C and realizes
+  as the first inversion a player would write, instead of E4 C5 G5.
+- **The five styles split by what they need.** `close` and `shell` take a chord,
+  because a shell has to know which degrees are the third and the seventh, and a
+  voicing alone does not carry that. `invert`, `drop` and `open` take a voicing
+  and work on anything, muse-built or not.
+
+`voicing_shell` keeps the root, the third or the suspension standing in for it,
+and the seventh or the sixth. That rule is stated nowhere in `DESIGN.md`, which
+only names the style; it is written down here because `C7sus4` and `C6` both
+have an answer under it and neither has one under "root, third, seventh".
 
 ---
 

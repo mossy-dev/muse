@@ -334,7 +334,7 @@ test_chord_slash_bass_sounds_below_the_chord :: proc(t: ^testing.T) {
   chord_tone, _ := chord_parse("C/E", context.temp_allocator)
   notes, ok := chord_notes(chord_tone, false, context.temp_allocator)
   testing.expect(t, ok)
-  testing.expect_value(t, notes_text(notes), "E C G")
+  testing.expect_value(t, notes_text(notes), "E G C")
 
   outside, _ := chord_parse("C/D", context.temp_allocator)
   outside_notes, outside_ok := chord_notes(outside, false, context.temp_allocator)

@@ -244,20 +244,19 @@ chord_omissions :: proc(chord: Chord, allocator := context.allocator) -> []Inter
 /*
 Realize a chord as notes, ascending from the root, with the omission applied.
 literal keeps the full stack instead, which is the same chord printed two ways.
-A slash bass sounds below the chord and comes first, whether or not it is one of
-the chord tones.
+
+A slash bass sounds below the chord and so comes first. One that is already a
+chord tone rotates the stack to start on itself rather than being repeated,
+which is what makes C/E read E G C; one that is not is placed in front of the
+stack it does not belong to. The order is the order a voicing realizes in, so
+voicing_close is this list with octaves attached.
 
 Returns false when a note would need more than a double accidental.
 */
 chord_notes :: proc(chord: Chord, literal := false, allocator := context.allocator) -> ([]Note, bool) {
   omitted, has_omission := intervals_omission(chord.intervals)
-  bass, has_bass        := chord.bass.?
 
   notes := make([dynamic]Note, 0, len(chord.intervals) + 1, allocator)
-
-  if has_bass {
-    append(&notes, bass)
-  }
 
   for interval in chord.intervals {
     if has_omission && !literal && interval == omitted {
@@ -269,13 +268,26 @@ chord_notes :: proc(chord: Chord, literal := false, allocator := context.allocat
       delete(notes)
       return nil, false
     }
-    if has_bass && note == bass {
-      continue
-    }
     append(&notes, note)
   }
 
-  return notes[:], true
+  bass, has_bass := chord.bass.?
+  if !has_bass {
+    return notes[:], true
+  }
+
+  index, is_chord_tone := slice.linear_search(notes[:], bass)
+  if !is_chord_tone {
+    inject_at(&notes, 0, bass)
+    return notes[:], true
+  }
+
+  rotated := make([dynamic]Note, 0, len(notes), allocator)
+  append(&rotated, ..notes[index:])
+  append(&rotated, ..notes[:index])
+  delete(notes)
+
+  return rotated[:], true
 }
 
 /*
