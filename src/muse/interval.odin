@@ -66,6 +66,7 @@ ORDINAL_NAMES := [16]string {
 }
 
 UNISON             :: Interval{ 0,  0 }
+AUGMENTED_UNISON   :: Interval{ 0,  1 }
 MINOR_SECOND       :: Interval{ 1,  1 }
 MAJOR_SECOND       :: Interval{ 1,  2 }
 AUGMENTED_SECOND   :: Interval{ 1,  3 }
@@ -78,6 +79,7 @@ PERFECT_FIFTH      :: Interval{ 4,  7 }
 AUGMENTED_FIFTH    :: Interval{ 4,  8 }
 MINOR_SIXTH        :: Interval{ 5,  8 }
 MAJOR_SIXTH        :: Interval{ 5,  9 }
+AUGMENTED_SIXTH    :: Interval{ 5, 10 }
 DIMINISHED_SEVENTH :: Interval{ 6,  9 }
 MINOR_SEVENTH      :: Interval{ 6, 10 }
 MAJOR_SEVENTH      :: Interval{ 6, 11 }

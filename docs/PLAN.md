@@ -134,7 +134,7 @@ Built, 15 tests. Three things the gates did not anticipate, each recorded in
 
 ---
 
-## Phase 4 — Scales
+## Phase 4 — Scales *(complete)*
 
 **Files:** `src/muse/scale.odin`, `src/muse/scale_test.odin`
 
@@ -160,6 +160,32 @@ Built, 15 tests. Three things the gates did not anticipate, each recorded in
   carrying its note list as the datum where none does.
 - `muse scale G## harmonic` reports the degree that outran double accidentals
   and suggests the enharmonic root, rather than emitting a wrong spelling.
+
+Built, 16 tests. Both classical tables are in `scale_test.odin` as the fixture
+and are reproduced across all 12 roots; nothing in `scale.odin` knows what a
+diatonic seventh is. The old tables' two broken rows never arise, since the
+qualities they named were right and only `CHORD_INTERVALS` was wrong.
+
+Four things the build settled:
+
+- **Size is a note count**, not a degree: 3 is a triad and 4 a seventh chord.
+  The CLI's `--size 3|7|9|11|13` is the musician's spelling of the same thing and
+  maps to 3, 4, 5, 6, 7 in phase 7, where the flag lives.
+- **Stacking stops rather than repeating a note.** Alternate members of a
+  six-note scale come back round to the root after three, so a blues scale
+  harmonizes into three-note chords whatever size is asked for. Every degree
+  still produces a line, which is the gate.
+- **The degree label reads the notes, not the chord.** A stack no template names
+  still has a third and a fifth, so it still has a numeral; deriving the label
+  from a `Chord` would have left the chromatic scale's lines unlabelled.
+- **`scale_parse` takes no default name.** `muse scale G` means G major, but that
+  default belongs to the command with an argument missing. A parser that read a
+  bare `C` as a scale would make every chord symbol ambiguous.
+
+`scale_parse` / `scale_string` were not in the build list and are here anyway:
+`G major` is a pipeline datum, so it has to parse, and the round trip is a phase
+gate everywhere else. `AUGMENTED_UNISON` and `AUGMENTED_SIXTH` joined
+`interval.odin` for the chromatic scale's ascending spelling.
 
 ---
 
