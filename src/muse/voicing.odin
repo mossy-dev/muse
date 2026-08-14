@@ -39,7 +39,7 @@ voicing_close :: proc(chord: Chord, octave := 4, literal := false, allocator := 
   if !notes_ok {
     return {}, false
   }
-  return voicing_stack(notes, octave, allocator), true
+  return voicing_from_notes(notes, octave, allocator), true
 }
 
 /*
@@ -158,13 +158,38 @@ voicing_notes :: proc(voicing: Voicing, allocator := context.allocator) -> []Not
 }
 
 /*
+Move every pitch of a voicing by an interval, register and all. A compound
+interval moves it further than its simple form, which is the whole reason
+pitches carry an octave.
+
+Returns false when a pitch would need more than a double accidental.
+*/
+voicing_transpose :: proc(voicing: Voicing, interval: Interval, allocator := context.allocator) -> (Voicing, bool) {
+  pitches := make([]Pitch, len(voicing.pitches), allocator)
+
+  for pitch, index in voicing.pitches {
+    moved, moved_ok := pitch_add_interval(pitch, interval)
+    if !moved_ok {
+      delete(pitches, allocator)
+      return {}, false
+    }
+    pitches[index] = moved
+  }
+
+  pitches_sort(pitches)
+  return Voicing{ pitches = pitches }, true
+}
+
+/*
 Place a run of notes in ascending order, the first in the given octave and each
 one after it in the lowest octave that clears the pitch below. Enharmonic
 neighbours are compared by sound, so a B# under a C lands in the octave that
 keeps the voicing ascending rather than the one its letter suggests.
+
+This is what realizes anything that is not already a voicing: a chord reaches it
+through voicing_close, and a scale or a bare note list is stacked as it stands.
 */
-@(private)
-voicing_stack :: proc(notes: []Note, octave: int, allocator := context.allocator) -> Voicing {
+voicing_from_notes :: proc(notes: []Note, octave := 4, allocator := context.allocator) -> Voicing {
   pitches := make([dynamic]Pitch, 0, len(notes), allocator)
 
   for note, index in notes {

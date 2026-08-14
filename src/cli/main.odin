@@ -16,10 +16,22 @@ EXIT_NO_ANSWER :: 2
 USAGE ::
 `usage: muse <command> [operand ...]
 
-  scale <root> [name]   build a scale, defaulting to major
-  chord <symbol>        build a chord from a symbol
-  notes                 reduce anything to its bare note list
-  interval <a> <b>      name the interval between two notes
+  scale <root> [name]      build a scale, defaulting to major
+  chord <symbol>           build a chord from a symbol
+  chords                   harmonize every degree of a scale
+  degree <n>               harmonize one degree, by number or numeral
+  notes                    reduce anything to its bare note list
+  interval <a> <b>         name the interval between two notes
+  transpose <interval>     transpose, preserving spelling
+  invert <n>               invert a voicing
+  voice <style>            realize as pitches: close open drop2 drop3 shell
+  name <notes ...>         identify the chord or scale a note set forms
+  in <key>                 annotate input with its degrees in a key
+  help                     print this message
+
+  --size 3|7|9|11|13       how far to stack a harmonization, default 3
+  --octave <n>             where a realization sounds, default 4
+  --literal                keep the degree a chord's realization drops
 
 Every command reads its operand from its arguments, and from stdin when it has
 none, so any line muse prints can be piped into the next command or typed back
@@ -51,7 +63,10 @@ Read the command line and hand off to the command it names.
 dispatch :: proc(arguments: []string) -> int {
   options, token, options_ok := options_parse(arguments)
   if !options_ok {
-    return fail(EXIT_USAGE, "unknown option", token)
+    return fail(EXIT_USAGE, "bad option", token)
+  }
+  if options.help {
+    return command_help()
   }
 
   switch options.command {
@@ -62,10 +77,26 @@ dispatch :: proc(arguments: []string) -> int {
     return command_scale(options)
   case "chord":
     return command_chord(options)
+  case "chords":
+    return command_chords(options)
+  case "degree":
+    return command_degree(options)
   case "notes":
     return command_notes(options)
   case "interval":
     return command_interval(options)
+  case "transpose":
+    return command_transpose(options)
+  case "invert":
+    return command_invert(options)
+  case "voice":
+    return command_voice(options)
+  case "name":
+    return command_name(options)
+  case "in":
+    return command_in(options)
+  case "help":
+    return command_help()
   }
 
   return fail(EXIT_USAGE, "unknown command", options.command)

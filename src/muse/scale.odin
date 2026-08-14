@@ -191,6 +191,28 @@ scale_respell :: proc(scale: Scale, allocator := context.allocator) -> (Scale, b
 }
 
 /*
+The same scale on a root moved by an interval. The template is untouched, so the
+spelling of every degree follows from the new root by the same arithmetic that
+spelled the old one, and transposing back returns the scale that set out.
+
+Returns false when the new root itself needs more than a double accidental. A
+root that spells but leaves a degree that does not is scale_notes' answer to
+give, since it is the one that knows which degree ran out.
+*/
+scale_transpose :: proc(scale: Scale, interval: Interval, allocator := context.allocator) -> (Scale, bool) {
+  root, root_ok := note_add_interval(scale.root, interval)
+  if !root_ok {
+    return {}, false
+  }
+
+  return Scale {
+    root      = root,
+    name      = strings.clone(scale.name, allocator),
+    intervals = slice.clone(scale.intervals, allocator),
+  }, true
+}
+
+/*
 Read a scale name: a root, a space, and a template name or one of its aliases.
 The name is matched without regard to case, so "G Major" and "g major" differ
 only in the root, which is case sensitive because note letters are.

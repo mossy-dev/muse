@@ -236,6 +236,44 @@ interval_make :: proc(number: int, quality: IntervalQuality) -> (Interval, bool)
 }
 
 /*
+The interval a bare semitone count names, spelled as the interval a musician
+writes for that distance: the one whose quality is major, minor or perfect. So 3
+semitones is a minor third and not an augmented second, and 13 is a minor ninth.
+
+The tritone is the only distance no major, minor or perfect interval spans, and
+it takes the augmented fourth, since transposing up six semitones from C reaches
+F# far more often than it reaches Gb.
+
+A count of semitones carries no spelling, so this supplies one. `muse transpose
+m3` says which third it means and gets it; `muse transpose +3` gets this.
+*/
+interval_from_semitones :: proc(semitones: int) -> Interval {
+  if semitones < 0 {
+    return interval_negate(interval_from_semitones(-semitones))
+  }
+
+  octaves   := semitones / 12
+  remainder := semitones %% 12
+
+  steps := TRITONE_STEPS
+  for candidate in 0 ..< 7 {
+    deviation := remainder - MAJOR_SCALE_SEMITONES[candidate]
+    if deviation == 0 || (deviation == -1 && !interval_is_perfect_number(candidate)) {
+      steps = candidate
+      break
+    }
+  }
+
+  return Interval{ steps + 7 * octaves, semitones }
+}
+
+/*
+The step count the tritone is spelled with: a fourth, making it augmented.
+*/
+@(private)
+TRITONE_STEPS :: 3
+
+/*
 The interval from one note to another, taken upward. With no octave to work
 from the step count wraps within one, but the semitone count is derived from
 the letters and their alterations rather than from pitch classes, so C to B#

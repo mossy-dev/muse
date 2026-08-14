@@ -385,6 +385,38 @@ chord_parse :: proc(text: string, allocator := context.allocator) -> (Chord, boo
 }
 
 /*
+The same chord on a root moved by an interval, slash bass and all. The symbol
+and the interval set are the chord's identity and neither moves, so a
+transposition is a change of root and nothing else, and transposing back returns
+the chord that set out.
+
+Returns false when the new root or the new bass needs more than a double
+accidental.
+*/
+chord_transpose :: proc(chord: Chord, interval: Interval, allocator := context.allocator) -> (Chord, bool) {
+  root, root_ok := note_add_interval(chord.root, interval)
+  if !root_ok {
+    return {}, false
+  }
+
+  transposed := Chord {
+    root      = root,
+    symbol    = strings.clone(chord.symbol, allocator),
+    intervals = slice.clone(chord.intervals, allocator),
+  }
+
+  if bass, has_bass := chord.bass.?; has_bass {
+    moved, moved_ok := note_add_interval(bass, interval)
+    if !moved_ok {
+      return {}, false
+    }
+    transposed.bass = moved
+  }
+
+  return transposed, true
+}
+
+/*
 The canonical spelling of a chord: root, symbol, and the slash bass when there
 is one. Parsing this returns the chord it was printed from.
 */

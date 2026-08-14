@@ -181,3 +181,38 @@ test_spoken_names :: proc(t: ^testing.T) {
   expect_name(t, MAJOR_THIRTEENTH,   "major thirteenth")
   expect_name(t, interval_negate(PERFECT_FIFTH), "descending perfect fifth")
 }
+
+/*
+A semitone count carries no spelling, so the one it is given is the one a
+musician writes: the major, minor or perfect interval of that distance, and the
+augmented fourth for the tritone, which is the one distance none of those spans.
+*/
+@(test)
+test_semitone_counts_spell_as_the_plain_intervals :: proc(t: ^testing.T) {
+  testing.expect_value(t, interval_from_semitones(0),  UNISON)
+  testing.expect_value(t, interval_from_semitones(1),  MINOR_SECOND)
+  testing.expect_value(t, interval_from_semitones(3),  MINOR_THIRD)
+  testing.expect_value(t, interval_from_semitones(4),  MAJOR_THIRD)
+  testing.expect_value(t, interval_from_semitones(5),  PERFECT_FOURTH)
+  testing.expect_value(t, interval_from_semitones(6),  AUGMENTED_FOURTH)
+  testing.expect_value(t, interval_from_semitones(7),  PERFECT_FIFTH)
+  testing.expect_value(t, interval_from_semitones(10), MINOR_SEVENTH)
+  testing.expect_value(t, interval_from_semitones(12), OCTAVE)
+  testing.expect_value(t, interval_from_semitones(14), MAJOR_NINTH)
+  testing.expect_value(t, interval_from_semitones(-3), interval_negate(MINOR_THIRD))
+}
+
+/*
+Every semitone count reaches a nameable interval, which is what makes a bare
+number safe to hand to transposition.
+*/
+@(test)
+test_every_semitone_count_names_an_interval :: proc(t: ^testing.T) {
+  for semitones in -24 ..= 24 {
+    interval := interval_from_semitones(semitones)
+    testing.expect_value(t, interval.semitones, semitones)
+
+    _, ok := interval_quality(interval)
+    testing.expectf(t, ok, "%d semitones spelled as an unnameable interval", semitones)
+  }
+}

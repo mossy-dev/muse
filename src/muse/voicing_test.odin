@@ -281,3 +281,43 @@ test_voicing_close_refuses_an_unspellable_chord :: proc(t: ^testing.T) {
   _, ok := voicing_close(chord, 4, false, context.temp_allocator)
   testing.expect(t, !ok)
 }
+
+/*
+A voicing transposes in register: a compound interval moves it further than its
+simple form, which is the whole reason a pitch carries an octave.
+*/
+@(test)
+test_voicing_transposition_carries_the_register :: proc(t: ^testing.T) {
+  close := voicing_of(t, "C")
+
+  up_a_second, second_ok := voicing_transpose(close, MAJOR_SECOND, context.temp_allocator)
+  testing.expect(t, second_ok)
+  testing.expect_value(t, pitches_text(up_a_second), "D4 F#4 A4")
+
+  up_a_ninth, ninth_ok := voicing_transpose(close, MAJOR_NINTH, context.temp_allocator)
+  testing.expect(t, ninth_ok)
+  testing.expect_value(t, pitches_text(up_a_ninth), "D5 F#5 A5")
+
+  back, back_ok := voicing_transpose(up_a_ninth, interval_negate(MAJOR_NINTH), context.temp_allocator)
+  testing.expect(t, back_ok)
+  testing.expect_value(t, pitches_text(back), pitches_text(close))
+}
+
+/*
+Stacking is what realizes anything that is not a chord: notes in the order they
+arrive, each in the lowest octave that clears the one below.
+*/
+@(test)
+test_voicing_from_notes_stacks_in_order :: proc(t: ^testing.T) {
+  scale, scale_ok := scale_parse("G major", context.temp_allocator)
+  testing.expect(t, scale_ok)
+
+  notes, _, notes_ok := scale_notes(scale, context.temp_allocator)
+  testing.expect(t, notes_ok)
+
+  testing.expect_value(
+    t,
+    pitches_text(voicing_from_notes(notes, 4, context.temp_allocator)),
+    "G4 A4 B4 C5 D5 E5 F#5",
+  )
+}

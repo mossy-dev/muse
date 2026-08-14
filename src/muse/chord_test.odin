@@ -472,3 +472,55 @@ test_chord_notes_refuses_an_unspellable_chord :: proc(t: ^testing.T) {
   _, notes_ok := chord_notes(chord, false, context.temp_allocator)
   testing.expect(t, !notes_ok)
 }
+
+/*
+Transposing a chord moves its root and leaves its identity alone, so the symbol
+that named it before names it after.
+*/
+@(test)
+test_chord_transposition_moves_the_root_and_the_bass :: proc(t: ^testing.T) {
+  expect_transposed :: proc(t: ^testing.T, symbol: string, interval: Interval, expected: string) {
+    chord, chord_ok := chord_parse(symbol, context.temp_allocator)
+    testing.expectf(t, chord_ok, "%s did not parse", symbol)
+
+    moved, moved_ok := chord_transpose(chord, interval, context.temp_allocator)
+    testing.expectf(t, moved_ok, "%s did not transpose", symbol)
+    testing.expect_value(t, chord_string(moved, context.temp_allocator), expected)
+  }
+
+  expect_transposed(t, "Cmaj7", MINOR_THIRD,     "Ebmaj7")
+  expect_transposed(t, "Cmaj7", AUGMENTED_SECOND, "D#maj7")
+  expect_transposed(t, "C/E",   MAJOR_SECOND,    "D/F#")
+  expect_transposed(t, "Am7",   interval_negate(PERFECT_FIFTH), "Dm7")
+}
+
+/*
+The property DESIGN.md names: transposing and transposing back returns the chord
+that set out, spelling and all. The old model could not pass this, since a
+semitone count cannot say which third it meant.
+*/
+@(test)
+test_chord_transposition_is_invertible :: proc(t: ^testing.T) {
+  for root in TEST_ROOTS {
+    for template in CHORD_TEMPLATES {
+      chord := chord_make(root, template, context.temp_allocator)
+
+      for interval in ([]Interval{ MINOR_SECOND, MAJOR_THIRD, PERFECT_FIFTH, MINOR_SEVENTH }) {
+        moved, moved_ok := chord_transpose(chord, interval, context.temp_allocator)
+        if !moved_ok {
+          continue
+        }
+
+        back, back_ok := chord_transpose(moved, interval_negate(interval), context.temp_allocator)
+        testing.expect(t, back_ok)
+        testing.expectf(
+          t,
+          chord_equal(back, chord),
+          "%s did not survive a round trip through %s",
+          chord_string(chord, context.temp_allocator),
+          chord_string(moved, context.temp_allocator),
+        )
+      }
+    }
+  }
+}

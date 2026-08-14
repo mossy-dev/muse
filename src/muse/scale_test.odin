@@ -445,3 +445,40 @@ test_scale_respell_prefers_the_plainest_root :: proc(t: ^testing.T) {
     testing.expect_value(t, scale_string(respelled, context.temp_allocator), spelling.suggestion)
   }
 }
+
+/*
+A transposed scale keeps its template, so every degree is spelled by the same
+arithmetic on the new root, and transposing back returns the scale that set out.
+*/
+@(test)
+test_scale_transposition_is_invertible :: proc(t: ^testing.T) {
+  for root in TEST_ROOTS {
+    for template in SCALE_TEMPLATES {
+      scale := scale_make(root, template, context.temp_allocator)
+
+      for interval in ([]Interval{ MINOR_SECOND, MAJOR_THIRD, PERFECT_FIFTH }) {
+        moved, moved_ok := scale_transpose(scale, interval, context.temp_allocator)
+        if !moved_ok {
+          continue
+        }
+
+        back, back_ok := scale_transpose(moved, interval_negate(interval), context.temp_allocator)
+        testing.expect(t, back_ok)
+        testing.expect(t, scale_equal(back, scale))
+      }
+    }
+  }
+}
+
+@(test)
+test_scale_transposition_spells_by_the_interval :: proc(t: ^testing.T) {
+  major, _ := scale_parse("G major", context.temp_allocator)
+
+  up_a_fifth, up_ok := scale_transpose(major, PERFECT_FIFTH, context.temp_allocator)
+  testing.expect(t, up_ok)
+  testing.expect_value(t, scale_string(up_a_fifth, context.temp_allocator), "D major")
+
+  notes, _, notes_ok := scale_notes(up_a_fifth, context.temp_allocator)
+  testing.expect(t, notes_ok)
+  testing.expect_value(t, notes_text(notes), "D E F# G A B C#")
+}

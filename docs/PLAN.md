@@ -293,7 +293,7 @@ as a one-note voicing.
 
 ---
 
-## Phase 7 — Full transform surface
+## Phase 7 — Full transform surface *(complete)*
 
 **Build** `chords`, `degree`, `transpose`, `invert`, `voice`, `name`, `in`, and
 `help`.
@@ -301,6 +301,52 @@ as a one-note voicing.
 **Gate** every transform reads its operand from arguments and from stdin, and
 every transform's output re-parses as another transform's input. The transform
 table in `DESIGN.md` and the implemented set match exactly.
+
+Built, 22 tests: 14 in `cli`, and 8 in `muse` for the transposition the library
+gained on the way. `DESIGN.md`'s transform table and the dispatch switch now
+match name for name.
+
+**A command's own argument comes off the front of its operands, and what is left
+is the datum.** `operand_take` is the whole rule, so the one input rule is
+untouched: `muse voice drop2 Cmaj7` and `muse chord Cmaj7 | muse voice drop2`
+reach the same code. A key is the exception that needed a second rule, since
+`G harmonic minor` is three tokens — `key_take` takes the longest prefix that
+reads as a scale, so `muse in G major Am` splits where a reader expects.
+
+Five things the build settled:
+
+- **In `transpose`, a bare number is semitones and a quality letter is an
+  interval.** `transpose 3` and `transpose M3` differ, which is the only way to
+  have both forms `DESIGN.md` asks for. The semitone form has to invent a
+  spelling, and `interval_from_semitones` takes the major, minor or perfect
+  interval of that distance; the tritone is the one distance none of those spans
+  and it takes the augmented fourth.
+- **`name` reads a scale before a chord.** C D E F G A B is C major, though the
+  same notes are equally a Cmaj13, and every set the two readings compete over
+  is large enough that the scale is the question being asked. The chord reading
+  is still reachable by asking `muse chord` for it, whereas chord-first would
+  leave the major scale with no way to be named at all.
+- **`voice` and `invert` realize anything that is not already a voicing**, so a
+  scale voices without a chord step in front of it. Only `shell` needs a chord,
+  for the reason phase 5 recorded, and a note set that names none is exit code
+  2 rather than a parse error. `voicing_stack` became public as
+  `voicing_from_notes`, since stacking notes is what realizing anything else is.
+- **`in` reads the degree off the notes as they stand, except for a chord's
+  slash bass.** A voicing carries no root, so its lowest pitch is the only thing
+  a numeral can be measured from; a symbol carries one explicitly, so `C/E` in C
+  major is `I` and not `iii`. Roots outside the key take the accidental that
+  carries the key's own degree to them, which is how `bIII` and `#iv°` are
+  written and why no table of chromatic degrees exists.
+- **Transposition is library work.** `scale_transpose`, `chord_transpose` and
+  `voicing_transpose` join their own files, so `DESIGN.md`'s invertibility
+  property is a property test over every template and root rather than a CLI
+  transcript. A scale whose new root spells but whose degrees do not is
+  `scale_notes`' answer to give, since it is what knows which degree ran out.
+
+`--size` is carried on `Options` as a note count, translated once where the flag
+is read, so `chords` and `degree` never see the musician's numbering. `help`
+prints to stdout and exits 0, where a command line with nothing on it prints the
+same text to stderr and exits 1.
 
 ---
 
