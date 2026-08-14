@@ -351,6 +351,96 @@ objects, which is the proof that the text protocol carries the whole model.
 
 ---
 
+## Phase 10 — The keyboard sink
+
+An ASCII keyboard with the notes of the input pressed. It is the first output
+that shows rather than names, and it is the cheapest way to make an interval or
+a voicing obvious to someone who does not read symbols fluently.
+
+**It is a sink, and that is forced rather than chosen.** A keyboard is several
+lines tall, and the protocol is one item per line, so it cannot be an annotation
+column on an existing command. Its output does not parse, so under `DESIGN.md`'s
+test — a transform's output is valid input, a sink's is not — it ends a chain.
+Which also means it reads field one and derives everything else, exactly as
+`json` and `numbers` do, so it is one more witness that the text protocol
+carries the whole model.
+
+Depends on nothing after phase 6 and could be taken at any point from there;
+it is last because nothing else waits on it.
+
+**Files:** `src/cli/keyboard.odin`, `src/cli/keyboard_test.odin`
+
+Presentation, so it lives in `cli/` rather than in the library. `smf.odin` goes
+the other way because a MIDI file is an encoding a program will read back; a
+drawing is for the eye, carries nothing the datum did not already have, and has
+no meaning outside a terminal.
+
+**Build**
+- One octave is 28 columns and shares its right edge with the next, so a
+  keyboard is the same drawing repeated and successive keyboards line up.
+- Black keys straddle the boundary between two white keys, and there is none
+  between E and F or between B and C. This is what makes it a keyboard rather
+  than a row of twelve cells, and it is the only part of the drawing with a
+  wrong answer.
+- A pressed key is `*`: in the exposed foot of a white key, in place of the `#`
+  on a black one. ASCII and not color, so the drawing survives a pipe, a paste,
+  and a terminal that does no styling.
+- One keyboard per datum, headed by the datum line itself, which is where the
+  spelling lives: the picture can only show a pitch class, so `Bb` is named
+  above a keyboard that marks the same key `A#` would.
+- Register is derived, never asked for. A chord, a scale or a note list has none
+  and draws a single octave; a voicing draws the octaves it spans and marks a
+  pitch class twice when it sounds twice. The label row carries an octave number
+  under each C once there is more than one.
+- No trailing whitespace on any line.
+
+**Gate**
+- The three drawings below are the fixture, compared verbatim, so the anatomy is
+  enforced rather than eyeballed once.
+- The marked positions equal the datum's pitch-class set, over every chord
+  template on all 12 roots. A keyboard that marks a key the chord does not hold
+  is the one failure mode nobody would notice by looking.
+- A two-octave keyboard is the one-octave drawing twice, less the shared edge.
+- Piped and terminal output are byte-identical apart from color. The drawing has
+  a fixed width and never reflows to the terminal.
+
+```
+$ muse chord C | muse keys
+C	C E G
+_____________________________
+|  |#| |#|  |  |#| |#| |#|  |
+|  |#| |#|  |  |#| |#| |#|  |
+|  |_| |_|  |  |_| |_| |_|  |
+|   |   |   |   |   |   |   |
+|_*_|___|_*_|___|_*_|___|___|
+  C   D   E   F   G   A   B
+
+$ muse chord C7 | muse keys
+C7	C E G Bb
+_____________________________
+|  |#| |#|  |  |#| |#| |*|  |
+|  |#| |#|  |  |#| |#| |*|  |
+|  |_| |_|  |  |_| |_| |_|  |
+|   |   |   |   |   |   |   |
+|_*_|___|_*_|___|_*_|___|___|
+  C   D   E   F   G   A   B
+
+$ muse chord Cmaj7 | muse voice drop2 | muse keys
+G3 C4 E4 B4
+_________________________________________________________
+|  |#| |#|  |  |#| |#| |#|  |  |#| |#|  |  |#| |#| |#|  |
+|  |#| |#|  |  |#| |#| |#|  |  |#| |#|  |  |#| |#| |#|  |
+|  |_| |_|  |  |_| |_| |_|  |  |_| |_|  |  |_| |_| |_|  |
+|   |   |   |   |   |   |   |   |   |   |   |   |   |   |
+|___|___|___|___|_*_|___|___|_*_|___|_*_|___|___|___|_*_|
+  C3  D   E   F   G   A   B   C4  D   E   F   G   A   B
+```
+
+`--octaves` is not in this phase. The span is derived from the datum in both
+cases, and a flag overriding it can wait for someone who wants one.
+
+---
+
 ## Sequencing notes
 
 The chain is linear and each phase genuinely needs the one before it, with two

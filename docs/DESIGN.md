@@ -375,6 +375,11 @@ full chord objects, the text protocol is provably complete enough to reconstruct
 the model — the sinks are the invariant's test harness rather than a bypass
 around it.
 
+`keys` is the case that shows the split is structural rather than stylistic. A
+keyboard drawing is several lines tall, so it cannot be an annotation column on
+`chord` without breaking the one-item-per-line rule, and it does not parse, so
+it cannot be a transform. Being a sink is the only shape left for it.
+
 Annotation columns do not survive into a sink, because they never survive
 anywhere: a roman numeral is commentary relative to a key, not a property of the
 chord. Sinks take the same explicit context flags transforms do, so
@@ -425,6 +430,7 @@ Sinks, which end a chain:
 | `json` | structured output for programs |
 | `numbers` | bare MIDI note numbers, for scripts |
 | `info` | everything muse knows about the input |
+| `keys` | draw the input on an ASCII keyboard |
 
 Deleted from the old surface: `sevenths` / `7ths`, which was `ChordsCmd` with a
 different default and duplicated its struct verbatim — now `chords --size 7`.
@@ -544,6 +550,7 @@ src/
     args.odin           argument grammar, the args-else-stdin rule, the datum
     command.odin        the transforms
     render.odin         columns and color
+    keyboard.odin       the ASCII keyboard drawing
     sink.odin           midi, json, numbers, info
     tty.odin            terminal detection, over core:terminal
 ```
