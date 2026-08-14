@@ -9,6 +9,7 @@ release:
 
 test:
   odin test src/muse
+  odin test src/cli
 
 run: build
   ./build

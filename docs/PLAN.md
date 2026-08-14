@@ -232,7 +232,7 @@ have an answer under it and neither has one under "root, third, seventh".
 
 ---
 
-## Phase 6 — CLI core
+## Phase 6 — CLI core *(complete)*
 
 First phase with a running binary. `just build` works again from here.
 
@@ -252,6 +252,44 @@ First phase with a running binary. `just build` works again from here.
 - `muse scale G major | muse notes` works end to end.
 - Redirecting to a file and piping produce identical field one.
 - A malformed argument exits 1 with no stdout output.
+
+Built, 14 tests, and `just test` now runs both packages: `odin test` tolerates
+the `main` proc, so the CLI's pure halves — the argument grammar, the datum
+reader, the renderer — are testable without a process. The golden transcripts
+that run the real binary stay in phase 9 where the plan puts them.
+
+Three deviations from the file list, each for the same reason:
+
+- **`tty.odin`, not `tty_unix.odin` and `tty_windows.odin`.** `core:terminal`
+  already carries the `isatty` and `GetConsoleMode` calls behind one generic,
+  along with the `NO_COLOR` and `TERM` reading a hand-rolled pair would have
+  grown next. Two files of syscall bindings would restate a dependency rather
+  than remove one.
+- **`command.odin` holds the four commands**, because `DESIGN.md` says
+  `main.odin` is dispatch only and means it.
+- **`render_text` takes layout as a parameter** and `render` supplies it from
+  the terminal check. That is what makes "a redirect and a pipe agree on field
+  one" a test rather than a manual comparison.
+
+Three things the build settled:
+
+- **Layout is a parameter of rendering, not a mode of the program.** The only
+  thing `output_is_terminal` reaches is column padding and color. Reading stdin
+  is not gated on it, so `muse chord` with no arguments blocks on a terminal
+  exactly as `cat` does, rather than growing a fourth TTY-dependent behaviour.
+- **A command parses every datum in its input before rendering any of it.** That
+  is what makes "no partial output on failure" true for a piped file of symbols
+  and not only for a single bad argument.
+- **`--literal` belongs to the invocation, not to the datum.** `muse chord C13
+  --literal | muse notes` prints the idiomatic realization, because field one
+  is `C13` and the next command renders it its own way. The flag is carried on
+  `Options` and passed at realization, never into a parsed chord.
+
+`Datum` is the union of everything field one can hold — scale, chord, note list,
+voicing — and it is the CLI's own type rather than the library's, since it exists
+only to decide which parser a line belongs to. The one overlap the ordering
+settles is a single token like `C5`, which reads as the power chord rather than
+as a one-note voicing.
 
 ---
 

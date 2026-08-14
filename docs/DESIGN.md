@@ -541,11 +541,11 @@ src/
     smf.odin            Standard MIDI File encoding to a byte slice
   cli/
     main.odin           dispatch only
-    args.odin           argument grammar, the args-else-stdin rule
+    args.odin           argument grammar, the args-else-stdin rule, the datum
+    command.odin        the transforms
     render.odin         columns and color
     sink.odin           midi, json, numbers, info
-    tty_unix.odin       terminal detection
-    tty_windows.odin
+    tty.odin            terminal detection, over core:terminal
 ```
 
 The old design's separation of theory from I/O was correct and is kept. The
