@@ -26,9 +26,16 @@ transcript: build
 run: build
   ./build
 
+# The page is generated rather than kept, since its command surface is the
+# binary's own help text and a stored copy could disagree with it.
+man: build
+  ./tools/manpage.sh build > muse.1
+
 install: release
+  ./tools/manpage.sh build > muse.1
   install -Dm755 build {{destdir}}{{prefix}}/bin/muse
+  install -Dm644 muse.1 {{destdir}}{{prefix}}/share/man/man1/muse.1
   install -Dm644 LICENSE {{destdir}}{{prefix}}/share/licenses/muse/LICENSE
 
 clean:
-  rm -f build
+  rm -f build muse.1

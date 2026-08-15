@@ -47,3 +47,15 @@ jobs:
 
       - name: Run the transcript
         run: ./tests/transcript.sh
+
+      # The page is generated from the binary, so a broken generator is a broken
+      # release. groff is asked for warnings and told not to render anything.
+      - name: Generate and check the man page
+        run: |
+          set -euo pipefail
+          ./tools/manpage.sh build > muse.1
+          grep -q '^\.TH MUSE 1' muse.1
+          grep -q 'muse scale G major' muse.1
+          if command -v groff > /dev/null; then
+            groff -man -Tutf8 -ww -z muse.1
+          fi

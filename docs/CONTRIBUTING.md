@@ -13,7 +13,13 @@ You need [Odin](https://odin-lang.org/docs/install/) and, for the recipes,
 just test       # the library, the CLI, and the golden transcripts
 just build      # ./build, one binary, debug
 just release    # optimized
+just man        # muse.1, generated from the binary's help text
 ```
+
+The man page is not kept in the tree. `tools/manpage.sh` runs `muse help` and
+wraps the result in roff, so the page's command surface is the binary's, and a
+stored copy that could disagree with it never exists. Change `USAGE` in
+`src/cli/main.odin` and the page follows.
 
 `just test` is the gate. It has to be green before a pull request, and CI runs
 the same three things on Linux x86_64, macOS arm64 and macOS x86_64.
@@ -64,6 +70,7 @@ Commit messages are one line, imperative in mood, no trailing period.
 | `src/cli/` | argument parsing, commands, rendering, sinks |
 | `tests/` | the transcript and its runner |
 | `docs/` | design, the chord grammar, the build order |
+| `tools/` | the man page generator |
 | `packaging/` | AUR and Homebrew packaging, and the release process |
 
 Unit tests sit beside the code they cover, as `*_test.odin`.

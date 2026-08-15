@@ -25,6 +25,7 @@ check() {
 package() {
   cd "muse-$pkgver-linux-x86_64"
   install -Dm755 muse "$pkgdir/usr/bin/muse"
+  install -Dm644 muse.1 "$pkgdir/usr/share/man/man1/muse.1"
   install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
   install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
 }
