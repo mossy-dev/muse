@@ -281,7 +281,7 @@ so it may already work.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). The short version: `just test` has to be
+See [CONTRIBUTING.md](docs/CONTRIBUTING.md). The short version: `just test` has to be
 green, `main` takes changes only through a pull request, and a change that alters
 a single column of a single line of output has to say so in
 `tests/transcript.txt`.

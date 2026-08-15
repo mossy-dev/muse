@@ -4,3 +4,6 @@
 
 # Generated from the binary's help text by tools/manpage.sh.
 /muse.1
+
+# Editor configuration, local to whoever is working here.
+/ols.json
