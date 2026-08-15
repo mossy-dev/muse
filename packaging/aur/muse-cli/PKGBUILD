@@ -1,0 +1,42 @@
+# Maintainer: Jake Carr <jake.carr@mail.randomsound.org>
+#
+# The package is muse-cli because extra/muse is already the MusE sequencer, and
+# the AUR does not take a name the official repositories hold. The binary stays
+# muse: MusE installs /usr/bin/muse4, so nothing collides on disk.
+
+pkgname=muse-cli
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='Composable music theory CLI: scales, chords, voicings and MIDI, in pipelines'
+arch=('x86_64' 'aarch64')
+url='https://github.com/mossy-dev/muse'
+license=('MIT')
+depends=('glibc')
+makedepends=('odin')
+provides=('muse-cli')
+conflicts=('muse-cli-bin')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+  cd "muse-$pkgver"
+  odin build src/cli -o:speed -out:muse -define:MUSE_VERSION="$pkgver"
+}
+
+check() {
+  cd "muse-$pkgver"
+  odin test src/muse
+  odin test src/cli
+
+  # The transcript runner looks for the binary the justfile leaves at ./build.
+  cp muse build
+  ./tests/transcript.sh
+  rm build
+}
+
+package() {
+  cd "muse-$pkgver"
+  install -Dm755 muse "$pkgdir/usr/bin/muse"
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+}

@@ -1,0 +1,30 @@
+# Maintainer: Jake Carr <jake.carr@mail.randomsound.org>
+#
+# The release binary, for anyone who would rather not pull the Odin compiler in
+# to build a 450 KiB program. See ../muse-cli for the source package and for why
+# the name is not plain muse.
+
+pkgname=muse-cli-bin
+pkgver=0.1.0
+pkgrel=1
+pkgdesc='Composable music theory CLI: scales, chords, voicings and MIDI, in pipelines'
+arch=('x86_64')
+url='https://github.com/mossy-dev/muse'
+license=('MIT')
+depends=('glibc')
+provides=('muse-cli')
+conflicts=('muse-cli')
+source_x86_64=("$url/releases/download/v$pkgver/muse-$pkgver-linux-x86_64.tar.gz")
+sha256sums_x86_64=('SKIP')
+
+check() {
+  cd "muse-$pkgver-linux-x86_64"
+  [ "$(./muse --version)" = "muse $pkgver" ]
+}
+
+package() {
+  cd "muse-$pkgver-linux-x86_64"
+  install -Dm755 muse "$pkgdir/usr/bin/muse"
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+}
