@@ -29,6 +29,7 @@ class Muse < Formula
 
   def install
     bin.install "muse"
+    man1.install "muse.1"
   end
 
   test do

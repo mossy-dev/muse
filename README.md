@@ -17,33 +17,8 @@ sequencer.
 
 ## Install
 
-**Arch Linux** — from the AUR, built from source or as the release binary:
-
-```
-paru -S muse-cli        # or: paru -S muse-cli-bin
-```
-
-The package is `muse-cli` because `extra/muse` is the MusE sequencer. The
-command it installs is still `muse`.
-
-**macOS** — from the tap:
-
-```
-brew install mossy-dev/tap/muse
-```
-
-**Any Linux or macOS** — the release binaries. Pick your platform from
-[the latest release](https://github.com/mossy-dev/muse/releases/latest):
-
-```
-curl -L https://github.com/mossy-dev/muse/releases/latest/download/muse-0.1.0-linux-x86_64.tar.gz | tar xz
-sudo install -m755 muse-0.1.0-linux-x86_64/muse /usr/local/bin/muse
-```
-
-Every release ships a `SHA256SUMS` beside the archives.
-
-**From source** — needs [Odin](https://odin-lang.org/docs/install/) and nothing
-else:
+Build it. muse needs [Odin](https://odin-lang.org/docs/install/) and nothing
+else — no libraries, no build system, one command:
 
 ```
 git clone https://github.com/mossy-dev/muse
@@ -51,20 +26,30 @@ cd muse
 odin build src/cli -o:speed -out:muse
 ```
 
-Or with [just](https://github.com/casey/just), which is what the repository
-expects of a contributor:
+That leaves a 450 KiB binary in the current directory. Put it on your `PATH`
+and you are done.
+
+With [just](https://github.com/casey/just), which is what the repository expects
+of a contributor, there is a little more on offer:
 
 ```
 just test       # the library, the CLI, and the golden transcripts
-just install    # honours PREFIX and DESTDIR
+just install    # binary, man page and licence; honours PREFIX and DESTDIR
 ```
 
-Verify what you got:
+Then `muse --version` and `man muse`.
 
-```
-$ muse --version
-muse 0.1.0
-```
+### Packages
+
+Not yet published. The Arch and Homebrew packaging is written and lives in
+[`packaging/`](packaging/), and the first tagged release turns it on — along
+with prebuilt binaries for Linux x86_64, macOS arm64 and macOS x86_64. Until
+then, build from source above.
+
+When it lands, Arch will be `paru -S muse-cli` and macOS `brew install
+mossy-dev/tap/muse`. The Arch package is `muse-cli` rather than `muse` because
+`extra/muse` is already the MusE sequencer; the command it installs is still
+`muse`.
 
 ## Notation is the protocol
 
@@ -318,6 +303,9 @@ Flags:
 Every command reads its operand from its arguments, and from stdin when it has
 none. Exit codes are `0` for success, `1` for a usage or parse error, and `2` for
 a well-formed request with no musical answer.
+
+`man muse` says all of this again, at length. The page is generated from the
+binary's own help text, so it cannot describe a flag muse does not have.
 
 ## Platforms
 

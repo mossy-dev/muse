@@ -1,3 +1,6 @@
 # The binary, however it was built.
 /build
 /muse
+
+# Generated from the binary's help text by tools/manpage.sh.
+/muse.1

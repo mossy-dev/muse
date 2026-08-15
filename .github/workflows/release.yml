@@ -68,12 +68,15 @@ jobs:
             exit 1
           fi
 
+      - name: Generate the man page
+        run: ./tools/manpage.sh muse > muse.1
+
       - name: Package
         run: |
           set -euo pipefail
           name="muse-${{ steps.version.outputs.version }}-${{ matrix.target }}"
           mkdir "${name}"
-          cp muse LICENSE README.md "${name}/"
+          cp muse muse.1 LICENSE README.md "${name}/"
           tar czf "${name}.tar.gz" "${name}"
 
       - uses: actions/upload-artifact@v4
