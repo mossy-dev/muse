@@ -426,7 +426,7 @@ length only the meter knows, so the sink resolves it after both are read.
 
 ---
 
-## Phase 9 — Remaining sinks, color, and the pipeline guarantee
+## Phase 9 — Remaining sinks, color, and the pipeline guarantee *(complete)*
 
 **Build**
 - The `json`, `numbers` and `info` sinks, each reading field one only and
@@ -439,6 +439,45 @@ length only the meter knows, so the sink resolves it after both are read.
 **Gate** the golden transcripts pass, so "output is valid input" is enforced
 rather than asserted. `muse chords G major | muse json` produces complete chord
 objects, which is the proof that the text protocol carries the whole model.
+
+Built, 9 more tests in `cli` and 25 pipelines in `tests/transcript.txt`. The
+transcript is run by `tests/transcript.sh`, which `just test` now runs after both
+packages; `just build` is a dependency of `test`, since a transcript needs a
+binary to be a transcript of. Reverting one column of one line makes it fail,
+which is the check that a golden file is worth keeping.
+
+The gate holds: `muse chords G major | muse json` gives seven objects carrying
+symbol, root, notes, intervals and omissions, and nothing reached the sink but
+the seven symbols.
+
+Five things the build settled:
+
+- **A sink's whole output is built before a byte of it is written.** That is what
+  makes "no partial output on failure" true of a file of symbols with a bad line
+  at the end, and it is the same rule the transforms follow by rendering rows.
+  `SinkError` is shared by all four sinks rather than being MIDI's own, so a line
+  that is not notation exits 1 and a line with no musical answer exits 2 wherever
+  it is met.
+- **`json` emits one array rather than a line of JSON per line of input.** A sink
+  is not in the pipeline protocol -- nothing reads it back -- so the one-item-per-
+  line rule has no claim here, and a program reading a whole document is better
+  served than one assembling a stream.
+- **The degree in an object is the numeral `in` prints, from the same proc.** A
+  sink takes `-k` exactly as a transform does, and going through `key_label`
+  rather than around it is what stops a numeral in JSON and a numeral in a
+  pipeline from disagreeing.
+- **`--literal` reaches the sinks, and an object describes the realization it
+  printed.** So `omitted` is empty under the flag, where the chord's own interval
+  set is unchanged. The alternative -- a full stack of notes beside a claim that
+  an eleventh was dropped -- is a contradiction on one line.
+- **`info` omits a field it has no answer for rather than printing it blank**,
+  which is what leaves a chord with no bass, a note set with no name, and a
+  realization outside MIDI's 128 notes each one row shorter.
+
+`--color` overrides detection in both directions and `--plain` drops the
+annotation columns; neither can reach field one, which is the same guarantee the
+layout already had. Alignment stays tied to the terminal, since a colour flag is
+about colour.
 
 ---
 

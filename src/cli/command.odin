@@ -38,7 +38,7 @@ command_scale :: proc(options: Options) -> int {
     append(&rows, Row{ datum = muse.scale_string(scale), annotations = annotations })
   }
 
-  render(rows[:])
+  render(rows[:], options)
   return EXIT_SUCCESS
 }
 
@@ -81,7 +81,7 @@ command_chord :: proc(options: Options) -> int {
     }
   }
 
-  render(rows[:])
+  render(rows[:], options)
   for reading in readings {
     warn(reading)
   }
@@ -125,7 +125,7 @@ command_chords :: proc(options: Options) -> int {
     append(&rows, ..lines)
   }
 
-  render(rows[:])
+  render(rows[:], options)
   return EXIT_SUCCESS
 }
 
@@ -177,7 +177,7 @@ command_transpose :: proc(options: Options) -> int {
     append(&rows, row)
   }
 
-  render(rows[:])
+  render(rows[:], options)
   return EXIT_SUCCESS
 }
 
@@ -224,7 +224,7 @@ command_voice :: proc(options: Options) -> int {
     append(&rows, voicing_row(voiced))
   }
 
-  render(rows[:])
+  render(rows[:], options)
   return EXIT_SUCCESS
 }
 
@@ -267,7 +267,7 @@ command_invert :: proc(options: Options) -> int {
     append(&rows, voicing_row(muse.voicing_invert(voicing, n)))
   }
 
-  render(rows[:])
+  render(rows[:], options)
   return EXIT_SUCCESS
 }
 
@@ -304,7 +304,7 @@ command_name :: proc(options: Options) -> int {
     append(&rows, row)
   }
 
-  render(rows[:])
+  render(rows[:], options)
   return EXIT_SUCCESS
 }
 
@@ -351,7 +351,7 @@ command_in :: proc(options: Options) -> int {
     append(&rows, Row{ datum = text, annotations = annotations })
   }
 
-  render(rows[:])
+  render(rows[:], options)
   return EXIT_SUCCESS
 }
 
@@ -390,7 +390,7 @@ command_notes :: proc(options: Options) -> int {
     append(&rows, Row{ datum = notes_string(notes) })
   }
 
-  render(rows[:])
+  render(rows[:], options)
   return EXIT_SUCCESS
 }
 
@@ -430,7 +430,7 @@ command_interval :: proc(options: Options) -> int {
     append(&rows, Row{ datum = abbreviation, annotations = annotations })
   }
 
-  render(rows[:])
+  render(rows[:], options)
   return EXIT_SUCCESS
 }
 
@@ -858,15 +858,11 @@ intervals_string :: proc(notes: []muse.Note, allocator := context.allocator) -> 
     return "", false
   }
 
-  abbreviations := make([]string, len(notes), context.temp_allocator)
-  for note, index in notes {
-    interval := muse.interval_between(notes[0], note)
-
-    abbreviation, abbreviation_ok := muse.interval_abbreviation(interval, context.temp_allocator)
-    if !abbreviation_ok {
-      return "", false
-    }
-    abbreviations[index] = abbreviation
+  abbreviations, abbreviations_ok := interval_abbreviations(
+    notes_intervals(notes, context.temp_allocator), context.temp_allocator,
+  )
+  if !abbreviations_ok {
+    return "", false
   }
 
   return strings.join(abbreviations, " ", allocator), true

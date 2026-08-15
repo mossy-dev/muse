@@ -36,8 +36,20 @@ Options :: struct {
   duration : Maybe(muse.Duration),
   output   : string,
   key      : string,
+  color    : Color,
   literal  : bool,
+  plain    : bool,
   help     : bool,
+}
+
+/*
+Whether to style output, asked of the terminal or answered outright. Auto is the
+zero value because detection is what happens when nobody says otherwise.
+*/
+Color :: enum {
+  Auto,
+  Always,
+  Never,
 }
 
 DEFAULT_SIZE   :: 3
@@ -82,8 +94,20 @@ options_parse :: proc(
       switch argument {
       case "--literal":
         options.literal = true
+      case "--plain":
+        options.plain = true
       case "--help":
         options.help = true
+      case "--color":
+        index += 1
+        if index == len(arguments) {
+          return options, argument, false
+        }
+        color, color_ok := color_parse(arguments[index])
+        if !color_ok {
+          return options, arguments[index], false
+        }
+        options.color = color
       case "--size":
         index += 1
         if index == len(arguments) {
@@ -171,6 +195,19 @@ size_notes :: proc(token: string) -> (int, bool) {
   case "13": return 7, true
   }
   return 0, false
+}
+
+/*
+The three answers to whether output is colored. There is no fourth, and a token
+that is none of them is a usage error rather than a silent fall back to auto.
+*/
+color_parse :: proc(token: string) -> (Color, bool) {
+  switch token {
+  case "auto":   return .Auto,   true
+  case "always": return .Always, true
+  case "never":  return .Never,  true
+  }
+  return .Auto, false
 }
 
 /*

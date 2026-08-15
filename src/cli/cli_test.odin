@@ -183,6 +183,48 @@ test_color_wraps_annotations_and_never_the_datum :: proc(t: ^testing.T) {
   testing.expect_value(t, text, "Cmaj7\t" + DIM + "C E G B" + RESET + "\n")
 }
 
+/*
+The flag overrides detection in both directions, and auto is what asks.
+*/
+@(test)
+test_color_follows_the_flag_before_the_terminal :: proc(t: ^testing.T) {
+  testing.expect(t, color_chosen(.Always, false))
+  testing.expect(t, !color_chosen(.Never, true))
+  testing.expect(t, color_chosen(.Auto, true))
+  testing.expect(t, !color_chosen(.Auto, false))
+
+  options, _, ok := options_parse([]string{ "scale", "--color", "never", "G" }, context.temp_allocator)
+  testing.expect(t, ok)
+  testing.expect_value(t, options.color, Color.Never)
+  testing.expect_value(t, len(options.operands), 1)
+
+  _, token, bogus_ok := options_parse([]string{ "scale", "--color", "maybe" }, context.temp_allocator)
+  testing.expect(t, !bogus_ok)
+  testing.expect_value(t, token, "maybe")
+}
+
+/*
+--plain drops the annotation columns and cannot reach field one, which is the
+same guarantee the layout has and for the same reason.
+*/
+@(test)
+test_plain_drops_the_annotations_and_keeps_the_datum :: proc(t: ^testing.T) {
+  rows := []Row {
+    { "Cmaj7", []string{ "C E G B" } },
+    { "C13",   []string{ "C E G Bb D A", "omits 11" } },
+  }
+
+  plain := rows_plain(rows, context.temp_allocator)
+  testing.expect_value(t, plain[0].datum, "Cmaj7")
+  testing.expect_value(t, len(plain[0].annotations), 0)
+
+  testing.expect_value(
+    t,
+    render_text(plain, false, false, context.temp_allocator),
+    "Cmaj7\nC13\n",
+  )
+}
+
 @(test)
 test_a_bare_root_is_a_major_scale :: proc(t: ^testing.T) {
   scale, ok := scale_read("G", context.temp_allocator)
@@ -659,17 +701,17 @@ test_midi_reports_the_line_that_failed :: proc(t: ^testing.T) {
   options, _, _ := options_parse([]string{ "midi" }, context.temp_allocator)
 
   _, nonsense, nonsense_error := midi_bytes([]string{ "Cmaj7", "Hmm" }, options, context.temp_allocator)
-  testing.expect_value(t, nonsense_error, MidiError.NotNotation)
+  testing.expect_value(t, nonsense_error, SinkError.NotNotation)
   testing.expect_value(t, nonsense, "Hmm")
 
   high, _, _ := options_parse([]string{ "midi", "--octave", "10" }, context.temp_allocator)
   _, token, range_error := midi_bytes([]string{ "Cmaj7" }, high, context.temp_allocator)
-  testing.expect_value(t, range_error, MidiError.OutOfRange)
+  testing.expect_value(t, range_error, SinkError.OutOfRange)
   testing.expect_value(t, token, "Cmaj7")
 
   keyed, _, _ := options_parse([]string{ "midi", "-k", "H major" }, context.temp_allocator)
   _, key_token, key_error := midi_bytes([]string{ "Cmaj7" }, keyed, context.temp_allocator)
-  testing.expect_value(t, key_error, MidiError.NotAKey)
+  testing.expect_value(t, key_error, SinkError.NotAKey)
   testing.expect_value(t, key_token, "H major")
 }
 
@@ -810,4 +852,217 @@ test_a_progression_reaches_the_midi_sink :: proc(t: ^testing.T) {
     }
   }
   testing.expect_value(t, ons, 12)
+}
+
+/*
+The phase gate: `muse chords G major | muse json` produces complete chord
+objects. Field one is all the sink is handed, so an object carrying the symbol,
+the root, the notes and the intervals is the proof that the text protocol
+carried the whole model rather than a label for it.
+*/
+@(test)
+test_json_rebuilds_the_whole_chord_from_field_one :: proc(t: ^testing.T) {
+  scale, _ := scale_read("G major", context.temp_allocator)
+  rows, _, rows_ok := harmony_rows(scale, nil, 4, context.temp_allocator)
+  testing.expect(t, rows_ok)
+
+  lines := make([dynamic]string, 0, len(rows), context.temp_allocator)
+  for row in rows {
+    append(&lines, row.datum)
+  }
+
+  options, _, _ := options_parse([]string{ "json" }, context.temp_allocator)
+  text, token, error := json_text(lines[:], nil, options, context.temp_allocator)
+  testing.expectf(t, error == .None, "%s: %v", token, error)
+
+  testing.expect_value(t, strings.count(text, "\"type\": \"chord\""), 7)
+  for expected in ([]string {
+    "\"symbol\": \"Gmaj7\"",
+    "\"root\": \"G\"",
+    "\"notes\": [\"G\", \"B\", \"D\", \"F#\"]",
+    "\"intervals\": [\"P1\", \"M3\", \"P5\", \"M7\"]",
+    "\"omitted\": []",
+    "\"symbol\": \"F#m7b5\"",
+    "\"notes\": [\"F#\", \"A\", \"C\", \"E\"]",
+  }) {
+    testing.expectf(t, strings.contains(text, expected), "no %s in the objects", expected)
+  }
+}
+
+/*
+Every kind of datum has its own object, and each one is derived from field one
+alone. A register exists only where the datum had one, which is why a voicing
+carries MIDI numbers and a chord does not.
+*/
+@(test)
+test_json_gives_every_datum_its_own_object :: proc(t: ^testing.T) {
+  object :: proc(t: ^testing.T, text: string) -> string {
+    options, _, _ := options_parse([]string{ "json" }, context.temp_allocator)
+
+    written, token, error := json_text([]string{ text }, nil, options, context.temp_allocator)
+    testing.expectf(t, error == .None, "%s: %v", token, error)
+    return written
+  }
+
+  scale := object(t, "G major")
+  testing.expect(t, strings.contains(scale, "\"type\": \"scale\""))
+  testing.expect(t, strings.contains(scale, "\"name\": \"G major\""))
+  testing.expect(t, !strings.contains(scale, "\"midi\""))
+
+  slash := object(t, "Cmaj7/E")
+  testing.expect(t, strings.contains(slash, "\"bass\": \"E\""))
+
+  notes := object(t, "C E G")
+  testing.expect(t, strings.contains(notes, "\"type\": \"notes\""))
+  testing.expect(t, strings.contains(notes, "\"chord\": \"C\""))
+
+  voicing := object(t, "G3 C4 E4 B4")
+  testing.expect(t, strings.contains(voicing, "\"type\": \"voicing\""))
+  testing.expect(t, strings.contains(voicing, "\"pitches\": [\"G3\", \"C4\", \"E4\", \"B4\"]"))
+  testing.expect(t, strings.contains(voicing, "\"midi\": [55, 60, 64, 71]"))
+
+  nameless := object(t, "C Db")
+  testing.expect(t, strings.contains(nameless, "\"chord\": null"))
+}
+
+/*
+--literal is a rendering flag in the sink exactly as it is in the transforms: the
+same chord printed two ways, and the object describes the realization it printed.
+*/
+@(test)
+test_json_reports_the_omission_it_rendered :: proc(t: ^testing.T) {
+  idiomatic, _, _ := options_parse([]string{ "json" },             context.temp_allocator)
+  literal,   _, _ := options_parse([]string{ "json", "--literal" }, context.temp_allocator)
+
+  omitted, _, omitted_error := json_text([]string{ "C13" }, nil, idiomatic, context.temp_allocator)
+  testing.expect_value(t, omitted_error, SinkError.None)
+  testing.expect(t, strings.contains(omitted, "\"omitted\": [\"P11\"]"))
+  testing.expect(t, strings.contains(omitted, "\"notes\": [\"C\", \"E\", \"G\", \"Bb\", \"D\", \"A\"]"))
+
+  whole, _, whole_error := json_text([]string{ "C13" }, nil, literal, context.temp_allocator)
+  testing.expect_value(t, whole_error, SinkError.None)
+  testing.expect(t, strings.contains(whole, "\"omitted\": []"))
+  testing.expect(t, strings.contains(whole, "\"notes\": [\"C\", \"E\", \"G\", \"Bb\", \"D\", \"F\", \"A\"]"))
+}
+
+/*
+A sink takes its key by the same explicit flag a transform does, and the numeral
+it prints is the one `in` prints, since both read the same proc.
+*/
+@(test)
+test_a_sink_names_degrees_against_the_key_it_was_given :: proc(t: ^testing.T) {
+  options, _, ok := options_parse([]string{ "json", "-k", "G major" }, context.temp_allocator)
+  testing.expect(t, ok)
+
+  key, key_ok := sink_key(options, context.temp_allocator)
+  testing.expect(t, key_ok)
+
+  chord, _ := datum_parse("Am7", context.temp_allocator)
+  testing.expect_value(t, sink_degree(chord, key, false, context.temp_allocator), "ii7")
+
+  text, _, error := json_text([]string{ "Am7" }, key, options, context.temp_allocator)
+  testing.expect_value(t, error, SinkError.None)
+  testing.expect(t, strings.contains(text, "\"degree\": \"ii7\""))
+
+  keyless, _, keyless_error := json_text([]string{ "Am7" }, nil, options, context.temp_allocator)
+  testing.expect_value(t, keyless_error, SinkError.None)
+  testing.expect(t, !strings.contains(keyless, "\"degree\""))
+
+  bogus, _, _ := options_parse([]string{ "json", "-k", "H major" }, context.temp_allocator)
+  _, bogus_ok := sink_key(bogus, context.temp_allocator)
+  testing.expect(t, !bogus_ok)
+}
+
+/*
+The numbers a script reads are the pitches the MIDI sink writes, which is what
+makes them worth having: the two realize by the same route.
+*/
+@(test)
+test_numbers_are_the_pitches_the_file_would_carry :: proc(t: ^testing.T) {
+  options, _, _ := options_parse([]string{ "numbers" }, context.temp_allocator)
+
+  text, token, error := numbers_text(
+    []string{ "Cmaj7", "G major", "G3 C4 E4 B4" }, options, context.temp_allocator,
+  )
+  testing.expectf(t, error == .None, "%s: %v", token, error)
+  testing.expect_value(t, text, "60 64 67 71\n67 69 71 72 74 76 78\n55 60 64 71\n")
+
+  _, nonsense, nonsense_error := numbers_text([]string{ "Cmaj7", "Hmm" }, options, context.temp_allocator)
+  testing.expect_value(t, nonsense_error, SinkError.NotNotation)
+  testing.expect_value(t, nonsense, "Hmm")
+
+  high, _, _ := options_parse([]string{ "numbers", "--octave", "10" }, context.temp_allocator)
+  _, range_token, range_error := numbers_text([]string{ "Cmaj7" }, high, context.temp_allocator)
+  testing.expect_value(t, range_error, SinkError.OutOfRange)
+  testing.expect_value(t, range_token, "Cmaj7")
+}
+
+/*
+A block says what the datum is and what muse derived from it, and a scale's block
+carries the chords in it, since that is what a scale is for.
+*/
+@(test)
+test_info_says_what_it_knows_and_leaves_out_what_it_does_not :: proc(t: ^testing.T) {
+  block :: proc(t: ^testing.T, arguments: []string, text: string) -> string {
+    options, _, _ := options_parse(arguments, context.temp_allocator)
+
+    key, key_ok := sink_key(options, context.temp_allocator)
+    testing.expect(t, key_ok)
+
+    written, token, error := info_text([]string{ text }, key, options, context.temp_allocator)
+    testing.expectf(t, error == .None, "%s: %v", token, error)
+    return written
+  }
+
+  scale := block(t, []string{ "info" }, "G major")
+  testing.expect(t, strings.has_prefix(scale, "G major\n"))
+  testing.expect(t, strings.contains(scale, "  triads    G Am Bm C D Em F#dim\n"))
+  testing.expect(t, strings.contains(scale, "  sevenths  Gmaj7 Am7 Bm7 Cmaj7 D7 Em7 F#m7b5\n"))
+  testing.expect(t, strings.contains(scale, "  midi      67 69 71 72 74 76 78\n"))
+  testing.expect(t, !strings.contains(scale, "  degree"))
+
+  chord := block(t, []string{ "info", "-k", "F major" }, "C13")
+  testing.expect(t, strings.contains(chord, "  type      chord\n"))
+  testing.expect(t, strings.contains(chord, "  omits     P11\n"))
+  testing.expect(t, strings.contains(chord, "  degree    V7\n"))
+
+  high := block(t, []string{ "info", "--octave", "10" }, "Cmaj7")
+  testing.expect(t, !strings.contains(high, "  midi"))
+
+  pair := block(t, []string{ "info" }, "C4 E4 G4")
+  testing.expect(t, strings.contains(pair, "  chord     C\n"))
+}
+
+/*
+A block per datum, separated by a blank line, and nothing written at all when a
+line in the middle of the input fails.
+*/
+@(test)
+test_a_sink_writes_nothing_when_a_line_fails :: proc(t: ^testing.T) {
+  options, _, _ := options_parse([]string{ "info" }, context.temp_allocator)
+
+  text, _, error := info_text([]string{ "C", "Am" }, nil, options, context.temp_allocator)
+  testing.expect_value(t, error, SinkError.None)
+  testing.expect(t, strings.contains(text, "\n\nAm\n"))
+
+  for arguments in ([][]string{ { "json" }, { "numbers" }, { "info" } }) {
+    failing, _, _ := options_parse(arguments, context.temp_allocator)
+
+    written := ""
+    token   := ""
+    error   := SinkError.None
+
+    switch arguments[0] {
+    case "json":
+      written, token, error = json_text([]string{ "C", "Hmm" }, nil, failing, context.temp_allocator)
+    case "numbers":
+      written, token, error = numbers_text([]string{ "C", "Hmm" }, failing, context.temp_allocator)
+    case "info":
+      written, token, error = info_text([]string{ "C", "Hmm" }, nil, failing, context.temp_allocator)
+    }
+
+    testing.expectf(t, error == .NotNotation, "%s accepted Hmm", arguments[0])
+    testing.expect_value(t, token, "Hmm")
+    testing.expect_value(t, len(written), 0)
+  }
 }

@@ -30,10 +30,44 @@ tab-separated everywhere else.
 
 The choice is presentation only. Both forms carry the same fields in the same
 order, so a redirect and a pipe differ in whitespace and in nothing a parser
-reads.
+reads. --color overrides the detection and --plain drops the annotations, and
+neither can reach field one.
 */
-render :: proc(rows: []Row) {
-  os.write_string(os.stdout, render_text(rows, output_is_terminal(), output_uses_color()))
+render :: proc(rows: []Row, options: Options) {
+  lines := options.plain ? rows_plain(rows) : rows
+
+  os.write_string(os.stdout, render_text(
+    lines,
+    output_is_terminal(),
+    color_chosen(options.color, output_uses_color()),
+  ))
+}
+
+/*
+Whether to color, from the flag and from the terminal underneath it. Auto asks
+the terminal and the other two do not, which is the whole of what it means for a
+flag to override detection.
+*/
+color_chosen :: proc(color: Color, terminal_color: bool) -> bool {
+  switch color {
+  case .Always: return true
+  case .Never:  return false
+  case .Auto:   return terminal_color
+  }
+  return false
+}
+
+/*
+The same rows with their annotation columns dropped. Annotations are commentary
+for a reader, so a --plain line is field one and the newline after it, which is
+what a script wants and what `cut -f1` would otherwise be for.
+*/
+rows_plain :: proc(rows: []Row, allocator := context.allocator) -> []Row {
+  plain := make([]Row, len(rows), allocator)
+  for row, index in rows {
+    plain[index] = Row{ datum = row.datum }
+  }
+  return plain
 }
 
 /*

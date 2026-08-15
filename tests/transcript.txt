@@ -1,0 +1,172 @@
+# The pipeline protocol: field one is a datum, and a datum parses.
+
+$ muse scale G major
+G major	G A B C D E F#
+
+$ muse scale G major | muse chords
+G	I	G B D
+Am	ii	A C E
+Bm	iii	B D F#
+C	IV	C E G
+D	V	D F# A
+Em	vi	E G B
+F#dim	vii°	F# A C
+
+$ muse scale G major | muse chords --size 7 | muse notes
+G B D F#
+A C E G
+B D F# A
+C E G B
+D F# A C
+E G B D
+F# A C E
+
+$ muse chords G major --plain
+G
+Am
+Bm
+C
+D
+Em
+F#dim
+
+$ muse chords "G major"
+G	I	G B D
+Am	ii	A C E
+Bm	iii	B D F#
+C	IV	C E G
+D	V	D F# A
+Em	vi	E G B
+F#dim	vii°	F# A C
+
+# A degree sequence is a progression, and it reaches the sinks.
+
+$ muse chords I V vi IV C major
+C	I	C E G
+G	V	G B D
+Am	vi	A C E
+F	IV	F A C
+
+$ muse scale C major | muse chords | muse in C major
+C	I
+Dm	ii
+Em	iii
+F	IV
+G	V
+Am	vi
+Bdim	vii°
+
+# The omission rule, and --literal as a rendering flag.
+
+$ muse chord C13
+C13	C E G Bb D A	omits 11
+
+$ muse chord C11
+C11	C G Bb D F	omits 3
+
+$ muse chord C13 --literal
+C13	C E G Bb D F A
+
+$ muse chord C13 | muse name
+C13	C E G Bb D A
+
+$ muse chord C13 --literal | muse name
+C13	C E G Bb D A
+
+# Voicings, transposition, and identification, each closing the loop.
+
+$ muse chord Cmaj7 | muse voice drop2
+G3 C4 E4 B4	Cmaj7/G
+
+$ muse chord Cmaj7 | muse voice drop2 | muse numbers
+55 60 64 71
+
+$ muse transpose m3 Cmaj7
+Ebmaj7	Eb G Bb D
+
+$ muse chord Cmaj7 | muse transpose M3 | muse notes | muse name
+Emaj7	E G# B D#
+
+$ muse interval C E
+M3	major third	4 semitones
+
+$ muse name C E G A
+C6	C E G A
+
+$ muse name A C E G
+Am7	A C E G
+
+# The sinks: field one in, everything else derived.
+
+$ muse chord Cmaj7 | muse json
+[
+  {
+    "type": "chord",
+    "symbol": "Cmaj7",
+    "root": "C",
+    "bass": null,
+    "notes": ["C", "E", "G", "B"],
+    "intervals": ["P1", "M3", "P5", "M7"],
+    "omitted": []
+  }
+]
+
+$ muse chords ii V I G major | muse json -k "G major"
+[
+  {
+    "type": "chord",
+    "symbol": "Am",
+    "root": "A",
+    "bass": null,
+    "notes": ["A", "C", "E"],
+    "intervals": ["P1", "m3", "P5"],
+    "omitted": [],
+    "degree": "ii"
+  },
+  {
+    "type": "chord",
+    "symbol": "D",
+    "root": "D",
+    "bass": null,
+    "notes": ["D", "F#", "A"],
+    "intervals": ["P1", "M3", "P5"],
+    "omitted": [],
+    "degree": "V"
+  },
+  {
+    "type": "chord",
+    "symbol": "G",
+    "root": "G",
+    "bass": null,
+    "notes": ["G", "B", "D"],
+    "intervals": ["P1", "M3", "P5"],
+    "omitted": [],
+    "degree": "I"
+  }
+]
+
+$ muse chord Cmaj7 | muse numbers
+60 64 67 71
+
+$ muse scale G major | muse numbers
+67 69 71 72 74 76 78
+
+$ muse scale G major | muse info
+G major
+  type      scale
+  root      G
+  notes     G A B C D E F#
+  intervals P1 M2 M3 P4 P5 M6 M7
+  midi      67 69 71 72 74 76 78
+  triads    G Am Bm C D Em F#dim
+  sevenths  Gmaj7 Am7 Bm7 Cmaj7 D7 Em7 F#m7b5
+
+$ muse chord C7sus4 | muse info -k "F major"
+C7sus4
+  type      chord
+  root      C
+  notes     C F G Bb
+  intervals P1 P4 P5 m7
+  midi      60 65 67 70
+  degree    V7
+

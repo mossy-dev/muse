@@ -660,6 +660,10 @@ What is unsettled is whether this is a promise. Until muse is worth depending
 on programmatically, `muse json` is explicitly unstable and says so in `--help`.
 Revisit if anything ever consumes it.
 
+Built in phase 9 with an object per kind of datum on the same pattern — a scale,
+a note list and a voicing alongside the chord above, and a `degree` field where
+`-k` gave a key. `json_object` in `src/cli/sink.odin` is the whole of it.
+
 **B. Harmonizing by subset rather than by stacking.** For pentatonic and blues
 scales, a more useful question than "stack alternate members" is "which named
 chords have all their tones in this scale". That is a different operation, not a
