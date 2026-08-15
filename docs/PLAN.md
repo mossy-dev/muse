@@ -3,6 +3,9 @@
 Phases are ordered by dependency and each one ends in something testable. Read
 `DESIGN.md` first; this document says what to build and in what order, not why.
 
+Phases 0 through 10 built muse and are complete. The roadmap at the end proposes
+what comes after them.
+
 ## Rules that apply to every phase
 
 - **A phase ends with `just test` green.** No phase lands with a failing test.
@@ -617,3 +620,222 @@ is a different kind of output than a column of chord symbols, and it is the
 phase most worth reaching. It is placed after the full transform surface because
 a pipeline ending in `midi` is only interesting if the pipeline in front of it
 can build something worth writing.
+
+---
+
+# Roadmap
+
+Everything above is built. Everything below is proposed, and proposed is not
+settled: a phase here is a claim about what is worth doing next, open to being
+dropped or reordered on evidence.
+
+The rules at the top of this document still apply. A phase ends with `just test`
+green, tests are written in the same phase as the code they cover, nothing
+derivable gets stored, and no phase lands holding an empty stub. What changes is
+that a phase now also ends behind a pull request, since `main` takes changes no
+other way.
+
+Five of the seven come from the parking lot in `DESIGN.md`, where they were
+deferred with reasoning rather than rejected; the parking lot stays the record
+of *why*, and these entries say what and in what order. Two parking-lot items
+are deliberately not here. **A**, the JSON schema's stability, fires when
+something consumes it, and nothing does. **C**, a key that persists through a
+chain, fires when a third command wants a key — and none of the commands below
+does, so the trigger stays untripped and the entry stays parked.
+
+The ordering is availability first, then the model, then discretion:
+distribution before features because muse is of no use to anyone who cannot
+install it, the core-model gap before new commands because it is a hole rather
+than an absence, and the two phases that promise something — Windows support, a
+stable library API — last, because a promise made while the thing beneath it is
+still moving is the wrong promise.
+
+---
+
+## Phase 11 — First release and packages *(proposed)*
+
+Everything this phase needs is written and merged. The phase is running it.
+
+**Build**
+- Tag `v0.1.0` and push it. The release workflow builds, tests and publishes on
+  Linux x86_64, macOS arm64 and macOS x86_64, and refuses to publish a binary
+  whose `--version` disagrees with the tag.
+- Publish `muse-cli` and `muse-cli-bin` to the AUR from `packaging/aur/`.
+- Create `mossy-dev/homebrew-tap` and add `Formula/muse.rb` from
+  `packaging/homebrew/`.
+- Restore the install instructions the README currently withholds, since they
+  stop being a promise and start being true.
+
+**Gate** on a machine that has never seen the source, each of `paru -S
+muse-cli`, `paru -S muse-cli-bin` and `brew install mossy-dev/tap/muse` puts a
+working `muse` and a working `man muse` on the system, and each reports the tag
+it was cut from.
+
+**Why first** the release workflow has never run. Everything downstream ships
+through it, so the phase that discovers it is broken should be the one with
+nothing queued behind it.
+
+---
+
+## Phase 12 — Shell completions *(proposed)*
+
+The command surface is sixteen commands and eleven flags, several taking a
+vocabulary a reader has to remember. Completion is the cheapest thing that makes
+it feel finished.
+
+**Files:** `tools/completions.sh`, `packaging/*`, `justfile`
+
+**Build**
+- bash, zsh and fish completion for the commands, the flags, and the vocabulary
+  each takes: scale names, voicing styles, degrees, colour modes, `--size`
+  values.
+- **Generated, not written**, on the same principle as the man page. The command
+  and flag lists come from the one place `--help` already reads, so a command
+  added in a later phase completes without anyone remembering that three files
+  exist.
+- Installed by `just install`, by both PKGBUILDs and by the formula, and shipped
+  in the release tarballs.
+
+**Gate** a command added in a later phase appears in all three shells with no
+completion file edited by hand. Completing a scale name offers what `scale`
+actually accepts, not a list that agrees with it today.
+
+**Open** whether the vocabulary is generated too. Scale and voicing names live
+in the library's template tables; exposing them as a machine-readable list is
+the difference between completion that stays true and completion that drifts,
+and it is the same argument the man page already settled once.
+
+---
+
+## Phase 13 — Naming altered chords *(proposed)*
+
+Parking lot F. Identification matches interval sets against the template table,
+so `C E G Bb Db` — a `C7b9` — has no name and comes back as a note list. The
+symbol is constructible and printable but not identifiable, and the round-trip
+gates miss it because they range over templates.
+
+**Files:** `src/muse/chord.odin`, `src/muse/chord_test.odin`,
+`tests/transcript.txt`
+
+**Build**
+- Identification matches the nearest template and expresses the remainder as
+  alterations. An algorithm, not more rows — more rows is the failure this
+  rewrite exists to correct.
+- A stated limit on how many alterations are worth carrying before "no name" is
+  the more honest answer.
+
+**Gate** the round-trip property extends from templates to altered symbols: for
+every symbol `CHORD-SYMBOLS.md` admits, `identify(notes(parse(s)))` reads back
+as `s`. That is the gate the current tests cannot state.
+
+**Open** the alteration limit, and the ranking when two templates sit equally
+close. Both are judgements best made against real output, which is why the
+parking lot deferred them until identification existed. It does now, so they can
+be made rather than guessed.
+
+---
+
+## Phase 14 — voice-lead *(proposed)*
+
+Parking lot D, the half worth doing first. A progression currently leaps around
+in parallel root position, and this is the single change that makes MIDI output
+sound like music rather than like a table read aloud.
+
+**Files:** `src/muse/voicing.odin`, `src/cli/command.odin`, tests, transcript
+
+**Build**
+- `voice-lead` over a sequence of voicings, choosing each successive inversion
+  and octave placement to minimize movement from the one before it.
+- **A stated cost function.** "Minimal movement" is not self-defining — total
+  semitones moved, largest single leap, and voice crossing each have a claim,
+  and choosing among them *is* the specification. Write it down before writing
+  the search.
+
+**Gate** a progression through `voice-lead` moves measurably less than the same
+progression through `voice close`, with the total written into the transcript
+rather than asserted in prose. It stays a transform: `Voicing → Voicing`, output
+re-parses as input, and the first voicing is unchanged because nothing precedes
+it to lead from.
+
+**Open** whether the first voicing is taken as given or chosen to minimize what
+follows. Taking it as given is the smaller claim and keeps the command a
+transform of its input rather than a search over it.
+
+---
+
+## Phase 15 — arp *(proposed)*
+
+Parking lot D, and the phase that has to say where the rhythm fence sits.
+
+**Files:** `src/muse/voicing.odin`, `src/cli/command.odin`, tests, transcript
+
+**Build**
+- `arp <style>` spreading a voicing across time: up, down, up-down, and whatever
+  else the vocabulary settles on.
+- The output is one voicing per sounded note rather than one voicing, so the
+  pipeline stays `Voicing → Voicing` and `midi` needs no new concept — each item
+  already takes one duration.
+
+**Gate** an arpeggiated chord through `midi` sounds its notes in sequence, and
+the total length equals the un-arpeggiated chord's, so `--duration` keeps
+meaning what it meant.
+
+**Open — and this is the whole phase.** The non-goals fence out patterns, swing,
+velocity and anything resembling a sequencer, and an arpeggiator is the first
+feature that wants more than a uniform grid. This phase either holds that line
+or moves it, deliberately and in `DESIGN.md`.
+
+Holding it is the recommendation, and it has a clean statement:
+**arpeggiation subdivides the duration the item already has, and does nothing
+else.** A chord that sounded for one bar still sounds for one bar; its notes
+divide that bar equally between them. Under that rule `arp` is a rendering of
+one datum, which is music theory. A pattern language, uneven subdivision or
+per-note velocity would each be a sequencer, and the fence holds against all
+three without needing a new argument.
+
+---
+
+## Phase 16 — Windows *(proposed)*
+
+The README says Windows is "not supported and not refused". This phase replaces
+that with an answer.
+
+**Build**
+- A `windows-latest` entry in the CI matrix.
+- Whatever the build and the tests turn out to need. There is no
+  platform-specific code in the tree and `core:terminal` already carries the
+  `GetConsoleMode` path, so the expectation is that little does — but the
+  expectation is exactly what has never been checked.
+
+**Gate** the build, both test packages and the transcript green on
+`windows-latest`. The transcript runner is `/bin/sh`, so it runs under the Git
+Bash the runner ships or it does not run at all; whichever it is goes in the
+README, in place of a support level CI does not prove.
+
+**Open** whether completions grow a PowerShell target, and whether anything is
+packaged. Support can honestly stop at "the binary builds and the tests pass" —
+a scoop manifest is a separate decision and a separate maintenance burden.
+
+---
+
+## Phase 17 — src/muse as a library *(proposed)*
+
+`src/muse` is a theory library that a CLI sits on top of, and nothing outside
+this repository has ever imported it. This phase says whether it may.
+
+**Files:** `docs/LIBRARY.md`, `README.md`
+
+**Build**
+- Document the package for use from another Odin program: the types, the
+  allocator contract every allocating proc carries, and what `import "muse"`
+  actually gets you.
+- State what is stable and what is not, in the same voice `muse json` already
+  uses about itself.
+
+**Gate** a small program outside this repository builds against `src/muse`
+following only the document, with no reading of the source.
+
+**Why last** the document is a stability promise, and the three phases above it
+are the ones that churn the library: identification changes in 13, and 14 and 15
+both add to `voicing.odin`. Promising an API before that work stops is promising
+the wrong one.
