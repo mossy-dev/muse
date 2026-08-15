@@ -1,0 +1,116 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: The tag to build a release from.
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Every binary is built on the platform it targets and tested there before it
+  # is packaged, so nothing ships that has not run the transcript on the machine
+  # it claims to run on.
+  build:
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: linux-x86_64
+            runner: ubuntu-latest
+          - target: macos-arm64
+            runner: macos-latest
+          - target: macos-x86_64
+            runner: macos-15-intel
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: ./.github/actions/setup-odin
+
+      - name: Read the version from the tag
+        id: version
+        run: |
+          set -euo pipefail
+          tag='${{ inputs.tag || github.ref_name }}'
+          echo "version=${tag#v}" >> "${GITHUB_OUTPUT}"
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+
+      - name: Build
+        run: |
+          odin build src/cli -o:speed -out:muse \
+            -define:MUSE_VERSION=${{ steps.version.outputs.version }}
+
+      - name: Test
+        run: |
+          odin test src/muse
+          odin test src/cli
+          cp muse build
+          ./tests/transcript.sh
+          rm build
+
+      - name: Check the binary reports the tag
+        run: |
+          set -euo pipefail
+          reported=$(./muse --version)
+          expected="muse ${{ steps.version.outputs.version }}"
+          if [ "${reported}" != "${expected}" ]; then
+            echo "binary says '${reported}', tag says '${expected}'" >&2
+            exit 1
+          fi
+
+      - name: Package
+        run: |
+          set -euo pipefail
+          name="muse-${{ steps.version.outputs.version }}-${{ matrix.target }}"
+          mkdir "${name}"
+          cp muse LICENSE README.md "${name}/"
+          tar czf "${name}.tar.gz" "${name}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: muse-${{ matrix.target }}
+          path: muse-*.tar.gz
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Checksum every asset
+        working-directory: artifacts
+        run: sha256sum muse-*.tar.gz > SHA256SUMS
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          gh release create "${TAG}" \
+            --title "${TAG}" \
+            --generate-notes \
+            --verify-tag \
+            artifacts/muse-*.tar.gz \
+            artifacts/SHA256SUMS

@@ -1,0 +1,43 @@
+name: Set up Odin
+description: >
+  Install a pinned Odin toolchain from the compiler's own release assets and put
+  it on PATH. The official tarballs are used directly rather than a third-party
+  action, so the only thing this depends on is the Odin project itself.
+
+inputs:
+  version:
+    description: The Odin release tag to install.
+    required: false
+    default: dev-2026-08
+
+runs:
+  using: composite
+  steps:
+    - name: Download and unpack Odin
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        case "${RUNNER_OS}-${RUNNER_ARCH}" in
+          Linux-X64)  asset=odin-linux-amd64 ;;
+          Linux-ARM64) asset=odin-linux-arm64 ;;
+          macOS-X64)  asset=odin-macos-amd64 ;;
+          macOS-ARM64) asset=odin-macos-arm64 ;;
+          *)
+            echo "no Odin release for ${RUNNER_OS}-${RUNNER_ARCH}" >&2
+            exit 1
+            ;;
+        esac
+
+        version='${{ inputs.version }}'
+        url="https://github.com/odin-lang/Odin/releases/download/${version}/${asset}-${version}.tar.gz"
+
+        mkdir -p "${RUNNER_TEMP}/odin"
+        curl --fail --location --silent --show-error "${url}" \
+          | tar xz --strip-components=1 -C "${RUNNER_TEMP}/odin"
+
+        echo "${RUNNER_TEMP}/odin" >> "${GITHUB_PATH}"
+
+    - name: Report the toolchain
+      shell: bash
+      run: odin version
