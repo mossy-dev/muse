@@ -1,0 +1,56 @@
+name: Bug report
+description: muse printed something wrong, or refused something it should answer.
+labels: [bug]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A pipeline and its output is worth more than a description of one. If you
+        can write the case as a line of `tests/transcript.txt`, that is the ideal
+        report — and very close to the fix.
+
+  - type: textarea
+    id: pipeline
+    attributes:
+      label: The command
+      description: The pipeline you ran, exactly.
+      render: shell
+      placeholder: muse chord Cmaj7#11 | muse voice drop2
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: What it printed
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+      description: >
+        If it is a question of notation rather than a crash, say why — which
+        spelling is right and what names it.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The output of `muse --version`.
+      placeholder: muse 0.1.0
+    validations:
+      required: true
+
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      placeholder: Arch Linux x86_64, or macOS 15 arm64
+    validations:
+      required: true

@@ -1,19 +1,69 @@
 # muse
 
-A music theory library with a CLI on top, written in Odin. It answers questions
-about scales, chords, intervals, voicings and transpositions, and it composes:
-the output of one invocation is valid input to the next.
+[![ci](https://github.com/mossy-dev/muse/actions/workflows/ci.yml/badge.svg)](https://github.com/mossy-dev/muse/actions/workflows/ci.yml)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+A music theory CLI that composes. It answers questions about scales, chords,
+intervals, voicings and transpositions, and the output of one invocation is
+valid input to the next.
 
 ```
 $ muse scale C major | muse chords I V vi IV | muse voice drop2 | muse midi > loop.mid
 ```
 
-## Build
+No project file, no session, no GUI. A 450 KiB binary that reads notation on
+stdin and writes notation on stdout, so the shell you already have is the
+sequencer.
+
+## Install
+
+**Arch Linux** — from the AUR, built from source or as the release binary:
 
 ```
-just build      # ./build, one binary
+paru -S muse-cli        # or: paru -S muse-cli-bin
+```
+
+The package is `muse-cli` because `extra/muse` is the MusE sequencer. The
+command it installs is still `muse`.
+
+**macOS** — from the tap:
+
+```
+brew install mossy-dev/tap/muse
+```
+
+**Any Linux or macOS** — the release binaries. Pick your platform from
+[the latest release](https://github.com/mossy-dev/muse/releases/latest):
+
+```
+curl -L https://github.com/mossy-dev/muse/releases/latest/download/muse-0.1.0-linux-x86_64.tar.gz | tar xz
+sudo install -m755 muse-0.1.0-linux-x86_64/muse /usr/local/bin/muse
+```
+
+Every release ships a `SHA256SUMS` beside the archives.
+
+**From source** — needs [Odin](https://odin-lang.org/docs/install/) and nothing
+else:
+
+```
+git clone https://github.com/mossy-dev/muse
+cd muse
+odin build src/cli -o:speed -out:muse
+```
+
+Or with [just](https://github.com/casey/just), which is what the repository
+expects of a contributor:
+
+```
 just test       # the library, the CLI, and the golden transcripts
-just release    # optimized
+just install    # honours PREFIX and DESTDIR
+```
+
+Verify what you got:
+
+```
+$ muse --version
+muse 0.1.0
 ```
 
 ## Notation is the protocol
@@ -263,14 +313,38 @@ Flags:
 | `--duration <n/d>` | how long each item sounds, default one bar |
 | `-k, --key <scale>` | the key to write a file in or name degrees against |
 | `-o <file>` | write a MIDI file here instead of to stdout |
+| `--help`, `--version` | print the command surface, or the version |
 
 Every command reads its operand from its arguments, and from stdin when it has
 none. Exit codes are `0` for success, `1` for a usage or parse error, and `2` for
 a well-formed request with no musical answer.
 
+## Platforms
+
+Linux and macOS, on x86_64 and arm64. CI builds and runs the full suite on
+Linux x86_64, macOS arm64 and macOS x86_64 for every change.
+
+Windows is not supported and not refused: there is no platform-specific code in
+the tree — terminal detection goes through `core:terminal`, which handles it —
+so it may already work. Nothing tests it, so nothing claims it.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). The short version: `just test` has to be
+green, `main` takes changes only through a pull request, and a change that alters
+a single column of a single line of output has to say so in
+`tests/transcript.txt`.
+
 ## Documentation
 
-- `docs/DESIGN.md` — the model, the pipeline protocol, and what the previous
-  design got wrong.
-- `docs/CHORD-SYMBOLS.md` — the chord grammar, worked case by case.
-- `docs/PLAN.md` — the build order, and what each phase settled.
+- [`docs/DESIGN.md`](docs/DESIGN.md) — the model, the pipeline protocol, and what
+  the previous design got wrong.
+- [`docs/CHORD-SYMBOLS.md`](docs/CHORD-SYMBOLS.md) — the chord grammar, worked
+  case by case.
+- [`docs/PLAN.md`](docs/PLAN.md) — the build order, and what each phase settled.
+- [`packaging/README.md`](packaging/README.md) — cutting a release, and where the
+  packages go.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
