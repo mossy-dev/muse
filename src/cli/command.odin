@@ -89,34 +89,40 @@ command_chord :: proc(options: Options) -> int {
 }
 
 /*
-Harmonize every degree of a scale, one chord per degree.
+Harmonize a scale: every degree in scale order, or the degrees named in front of
+it and in the order they were named. `muse chords I V vi IV` is a progression,
+and a degree may repeat because a progression may return to it.
 
 A stack no template names is not a failure: the notes are the datum for that
 line and the intervals from its bass are the annotation, which is what makes a
 pentatonic scale harmonize into something rather than into nothing.
 */
 command_chords :: proc(options: Options) -> int {
-  data, data_ok := input_read(options)
+  degrees, rest := degrees_take(options)
+  tokens        := options.operands[:len(degrees)]
+
+  data, data_ok := input_read(rest)
   if !data_ok {
     return fail(EXIT_USAGE, "no input", options.command)
   }
 
-  rows := make([dynamic]Row, 0, len(data) * 7)
+  rows := make([dynamic]Row, 0, len(data) * max(len(degrees), 7))
   for text in data {
     scale, scale_ok := scale_read(text)
     if !scale_ok {
       return fail(EXIT_USAGE, "not a scale", text)
     }
 
-    harmonies, harmonies_ok := muse.scale_harmonize(scale, options.size)
-    if !harmonies_ok {
-      _, degree, _ := muse.scale_notes(scale, context.temp_allocator)
-      return report_unspellable(scale, degree)
+    if _, unspelled, spells := muse.scale_notes(scale, context.temp_allocator); !spells {
+      return report_unspellable(scale, unspelled)
     }
 
-    for harmony, index in harmonies {
-      append(&rows, harmony_row(harmony, index + 1))
+    lines, failed, lines_ok := harmony_rows(scale, degrees, options.size)
+    if !lines_ok {
+      return fail(EXIT_NO_ANSWER, "no such degree", tokens[failed])
     }
+
+    append(&rows, ..lines)
   }
 
   render(rows[:])
@@ -581,6 +587,72 @@ datum_row :: proc(datum: Datum, literal := false, allocator := context.allocator
   }
 
   return {}, false
+}
+
+/*
+The lines a scale harmonizes into: the degrees asked for in the order they were
+asked for, or every degree in scale order when none were.
+
+An empty request becomes the sequence 1 to the length of the scale rather than a
+second code path, so a progression and a full harmonization are the same loop
+and a degree that repeats needs no thought.
+
+Returns the position in the sequence of the first degree the scale has no answer
+for, so the caller can echo the numeral a reader typed rather than the number
+muse read it as.
+*/
+@(private)
+harmony_rows :: proc(
+  scale     : muse.Scale,
+  degrees   : []int,
+  size      : int,
+  allocator := context.allocator,
+) -> (rows: []Row, failed: int, ok: bool) {
+  sequence := degrees
+  if len(sequence) == 0 {
+    every := make([]int, len(scale.intervals), context.temp_allocator)
+    for index in 0 ..< len(every) {
+      every[index] = index + 1
+    }
+    sequence = every
+  }
+
+  lines := make([]Row, len(sequence), allocator)
+  for degree, index in sequence {
+    harmony, harmony_ok := muse.scale_chord_at(scale, degree, size, allocator)
+    if !harmony_ok {
+      return nil, index, false
+    }
+    lines[index] = harmony_row(harmony, degree, allocator)
+  }
+
+  return lines, 0, true
+}
+
+/*
+Take a sequence of degrees off the front of a command's operands: the longest
+prefix that reads as one, which is the same shape of rule key_take follows.
+
+Nothing a scale is written with reads as a degree -- muse's numerals stop at
+XII, so C and D and M are note letters here and not hundreds -- so the split
+between `muse chords I V C major` and `muse chords C major` needs no marker
+between the two halves.
+*/
+@(private)
+degrees_take :: proc(options: Options, allocator := context.allocator) -> ([]int, Options) {
+  degrees := make([dynamic]int, 0, len(options.operands), allocator)
+
+  for operand in options.operands {
+    degree, degree_ok := degree_read(operand)
+    if !degree_ok {
+      break
+    }
+    append(&degrees, degree)
+  }
+
+  rest := options
+  rest.operands = options.operands[len(degrees):]
+  return degrees[:], rest
 }
 
 /*

@@ -18,7 +18,7 @@ USAGE ::
 
   scale <root> [name]      build a scale, defaulting to major
   chord <symbol>           build a chord from a symbol
-  chords                   harmonize every degree of a scale
+  chords [degrees ...]     harmonize a scale, every degree or the ones named
   degree <n>               harmonize one degree, by number or numeral
   notes                    reduce anything to its bare note list
   interval <a> <b>         name the interval between two notes

@@ -412,7 +412,7 @@ Transforms, which emit notation and compose freely:
 |---|---|
 | `scale <root> [name]` | build a scale (default `major`) |
 | `chord <symbol>` | build a chord from a symbol |
-| `chords [--size 3\|7\|9…]` | harmonize every degree of a scale |
+| `chords [degrees…] [--size 3\|7\|9…]` | harmonize a scale: every degree, or the ones named |
 | `degree <n> [--size]` | harmonize one degree; accepts `IV`, `iv`, `4` |
 | `notes` | reduce anything to its bare note list |
 | `interval <a> <b>` | name the interval between two notes |
@@ -434,6 +434,18 @@ Sinks, which end a chain:
 
 Deleted from the old surface: `sevenths` / `7ths`, which was `ChordsCmd` with a
 different default and duplicated its struct verbatim — now `chords --size 7`.
+
+**A degree sequence is a progression.** `muse chords I V vi IV` harmonizes those
+degrees in that order, repeats included, and `muse chords` with none harmonizes
+every degree in scale order. The degrees come off the front of the operands as
+the longest prefix that reads as one, the same rule `in` takes its key by;
+nothing a scale is written with reads as a degree, since muse's numerals stop at
+XII and leave C and D and M as note letters. This is what makes a progression a
+pipeline rather than a shell loop:
+
+```
+muse scale C major | muse chords I V vi IV | muse voice drop2 | muse midi > loop.mid
+```
 
 An earlier draft also listed `csv`, cut for being a flatter `json` aimed at a
 spreadsheet nobody had asked for. `json` covers structured output and `numbers`

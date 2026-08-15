@@ -1,5 +1,6 @@
 package main
 
+import "core:slice"
 import "core:strings"
 import "core:testing"
 
@@ -703,4 +704,110 @@ test_the_sink_reads_the_lines_a_transform_prints :: proc(t: ^testing.T) {
   bytes, token, error := midi_bytes(lines[:], options, context.temp_allocator)
   testing.expectf(t, error == .None, "%s: %v", token, error)
   testing.expect_value(t, string(bytes[:4]), "MThd")
+}
+
+/*
+The longest prefix of operands that reads as a degree is the sequence, and what
+is left is the datum. Nothing a scale is written with reads as a degree, so the
+two halves need no marker between them.
+*/
+@(test)
+test_degrees_come_off_the_front_of_the_operands :: proc(t: ^testing.T) {
+  expect_split :: proc(t: ^testing.T, arguments: []string, degrees: []int, datum: string) {
+    options, _, _ := options_parse(arguments, context.temp_allocator)
+
+    taken, rest := degrees_take(options, context.temp_allocator)
+    testing.expectf(t, slice.equal(taken, degrees), "%v took %v", arguments, taken)
+    testing.expect_value(t, strings.join(rest.operands, " ", context.temp_allocator), datum)
+  }
+
+  expect_split(t, []string{ "chords", "I", "V", "vi", "IV" },   []int{ 1, 5, 6, 4 }, "")
+  expect_split(t, []string{ "chords", "I", "V", "C", "major" }, []int{ 1, 5 },       "C major")
+  expect_split(t, []string{ "chords", "1", "4", "5" },          []int{ 1, 4, 5 },    "")
+  expect_split(t, []string{ "chords", "C", "major" },           []int{},             "C major")
+  expect_split(t, []string{ "chords" },                         []int{},             "")
+}
+
+/*
+A named sequence harmonizes in the order it was named, repeats included; naming
+none harmonizes every degree in scale order.
+*/
+@(test)
+test_a_progression_follows_the_order_it_was_asked_for :: proc(t: ^testing.T) {
+  scale, scale_ok := scale_read("C major", context.temp_allocator)
+  testing.expect(t, scale_ok)
+
+  expect_sequence :: proc(t: ^testing.T, rows: []Row, datums: []string, numerals: []string) {
+    testing.expect_value(t, len(rows), len(datums))
+    for row, index in rows {
+      testing.expect_value(t, row.datum, datums[index])
+      testing.expect_value(t, row.annotations[0], numerals[index])
+    }
+  }
+
+  progression, _, progression_ok := harmony_rows(
+    scale, []int{ 1, 5, 6, 4, 1 }, 3, context.temp_allocator,
+  )
+  testing.expect(t, progression_ok)
+  expect_sequence(t,
+    progression,
+    []string{ "C", "G", "Am", "F", "C" },
+    []string{ "I", "V", "vi", "IV", "I" },
+  )
+
+  every, _, every_ok := harmony_rows(scale, nil, 3, context.temp_allocator)
+  testing.expect(t, every_ok)
+  expect_sequence(t,
+    every,
+    []string{ "C", "Dm", "Em", "F", "G", "Am", "Bdim" },
+    []string{ "I", "ii", "iii", "IV", "V", "vi", "vii°" },
+  )
+}
+
+/*
+A degree the scale does not have is a well-formed request with no answer, and
+the position it came at is what lets the command echo the numeral that was
+typed rather than the number it read.
+*/
+@(test)
+test_a_degree_outside_the_scale_names_its_position :: proc(t: ^testing.T) {
+  scale, _ := scale_read("C major", context.temp_allocator)
+
+  _, failed, ok := harmony_rows(scale, []int{ 1, 5, 8 }, 3, context.temp_allocator)
+  testing.expect(t, !ok)
+  testing.expect_value(t, failed, 2)
+
+  pentatonic, _ := scale_read("C major pentatonic", context.temp_allocator)
+  _, sixth, pentatonic_ok := harmony_rows(pentatonic, []int{ 6 }, 3, context.temp_allocator)
+  testing.expect(t, !pentatonic_ok)
+  testing.expect_value(t, sixth, 0)
+}
+
+/*
+The pipeline the sequence exists for: a progression's lines are notation, so the
+sink reads them back and writes the four chords in the order they were asked
+for.
+*/
+@(test)
+test_a_progression_reaches_the_midi_sink :: proc(t: ^testing.T) {
+  scale, _ := scale_read("C major", context.temp_allocator)
+  rows, _, rows_ok := harmony_rows(scale, []int{ 1, 5, 6, 4 }, 3, context.temp_allocator)
+  testing.expect(t, rows_ok)
+
+  lines := make([dynamic]string, 0, len(rows), context.temp_allocator)
+  for row in rows {
+    append(&lines, row.datum)
+  }
+
+  options, _, _ := options_parse([]string{ "midi", "--duration", "1/4" }, context.temp_allocator)
+  bytes, token, error := midi_bytes(lines[:], options, context.temp_allocator)
+  testing.expectf(t, error == .None, "%s: %v", token, error)
+
+  ons := 0
+  for index := 0; index + 3 <= len(bytes); index += 1 {
+    if bytes[index] == 0x90 && bytes[index + 2] == muse.SMF_DEFAULT_VELOCITY {
+      ons += 1
+    }
+  }
+  testing.expect_value(t, ons, 12)
 }
