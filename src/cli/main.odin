@@ -19,6 +19,7 @@ USAGE ::
   scale <root> [name]      build a scale, defaulting to major
   chord <symbol>           build a chord from a symbol
   chords [degrees ...]     harmonize a scale, every degree or the ones named
+                           a degree is 4, IV or iv; the case is muse's to get
   notes                    reduce anything to its bare note list
   interval <a> <b>         name the interval between two notes
   transpose <interval>     transpose, preserving spelling

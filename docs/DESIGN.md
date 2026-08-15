@@ -438,7 +438,15 @@ sequence of one, and `muse chords V C major` is what `muse degree V C major` was
 
 **A degree sequence is a progression.** `muse chords I V vi IV` harmonizes those
 degrees in that order, repeats included, and `muse chords` with none harmonizes
-every degree in scale order. The degrees come off the front of the operands as
+every degree in scale order.
+
+A degree is written `4`, `IV` or `iv`, and the three are the same request. Case
+carries quality when a numeral is *printed* — upper for a major triad, lower for
+a minor one, `°` and `ø` and `+` for the fifths that name themselves — but that
+is muse's answer and not the reader's question. `muse chords IV C minor` prints
+`iv`, because the scale already knows what its fourth degree is and asking for a
+chord is not the same as claiming to know its quality. Refusing `iv` in a major
+key would make the tool require the answer as a condition of the question. The degrees come off the front of the operands as
 the longest prefix that reads as one, the same rule `in` takes its key by;
 nothing a scale is written with reads as a degree, since muse's numerals stop at
 XII and leave C and D and M as note letters. This is what makes a progression a
