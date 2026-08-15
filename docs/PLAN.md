@@ -350,7 +350,7 @@ same text to stderr and exits 1.
 
 ---
 
-## Phase 8 — MIDI
+## Phase 8 — MIDI *(complete)*
 
 The first output that is not notation, and the phase that makes the tool
 generative. Depends on phase 5 for realization and phase 6 for writing bytes.
@@ -378,6 +378,51 @@ generative. Depends on phase 5 for realization and phase 6 for writing bytes.
   nothing to stdout.
 - A file from `muse scale G major | muse midi` opens in a DAW and shows seven
   notes spelled to the key signature. Manual, once, recorded in the commit.
+
+Built, 19 tests: 11 in `muse` and 8 in `cli`. The decoder the gate asks for is
+in `smf_test.odin`, and it refuses anything the encoder does not emit — a chunk
+out of place, a running status, a voice message that is not a note — so the two
+halves disagreeing is a failure rather than a shrug. The golden fixture is the
+74 bytes of `muse chord Cmaj7 | muse midi`, event by event.
+
+**The last gate is not met.** The file was not opened in a DAW; that check needs
+a machine with one. `fluidsynth` renders the file without complaint, but it also
+renders a truncated copy of it without complaint, so it is not evidence.
+
+Five things the build settled:
+
+- **A scale is a run and everything else is a stack.** Seven notes one to an
+  item, rather than a seven-note cluster in one bar. `DESIGN.md`'s own remark
+  that a scale reads better as quarter notes than as seven whole bars only
+  parses if its notes are the items. A `voice` step in front of the sink makes
+  the same scale one chord, which is how the cluster is asked for, so both
+  readings are reachable and the datum's own form decides which one is default.
+- **`-k/--key` is here, though the flag list said `--tempo`, `--meter` and
+  `--duration`.** The key signature comes from the first datum that is a scale,
+  which covers `muse scale G major | muse midi`; but `DESIGN.md`'s own MIDI
+  pipeline harmonizes the scale away before the sink sees it, so without the
+  flag the case the key signature exists for is the case that cannot reach it.
+  It is the explicit context flag `DESIGN.md` already specifies for sinks. A run
+  naming no key writes no key signature rather than guessing at C major.
+- **The signature is arithmetic, not a table.** A letter's place on the circle
+  of fifths is its semitone count times seven within the octave, an accidental
+  moves the root seven places, and a minor mode reads three places back. A mode
+  is minor when it has a minor third and no major one, which is the only reading
+  of MIDI's two modes that needs nothing stored. Past seven accidentals the
+  event is omitted, since notation has no signature to write there either.
+- **`smf_in_range` is public so the CLI can name the line that failed.** The
+  encoder refuses a pitch outside MIDI's 128 notes, but by then it no longer
+  knows which input line the voicing came from. One definition, two callers,
+  rather than a range check written twice.
+- **The terminal refusal is a parameter, like the renderer's layout.** It runs
+  before the input is read, so refusing costs the pipeline in front of it
+  nothing, and `midi_refuses_terminal(output, is_terminal)` is a test rather
+  than a manual comparison.
+
+`Meter`, `Duration` and `SmfOptions` live in the library with the defaults on
+them, and the CLI reads its own defaults from `smf_default_options` so the
+numbers exist once. The duration a flag did not give is one bar, which is a
+length only the meter knows, so the sink resolves it after both are read.
 
 ---
 

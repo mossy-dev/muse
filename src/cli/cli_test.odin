@@ -531,3 +531,176 @@ test_every_transform_output_reparses :: proc(t: ^testing.T) {
   testing.expect(t, named_line_ok)
   expect_datum(t, named_line)
 }
+
+@(test)
+test_options_read_the_midi_flags :: proc(t: ^testing.T) {
+  options, _, ok := options_parse([]string {
+    "midi", "--tempo", "90", "--meter", "3/4", "--duration", "1/8", "-k", "G major", "-o", "loop.mid",
+  }, context.temp_allocator)
+
+  testing.expect(t, ok)
+  testing.expect_value(t, options.tempo, 90)
+  testing.expect_value(t, options.meter, muse.Meter{ 3, 4 })
+  testing.expect_value(t, options.duration.?, muse.Duration{ 1, 8 })
+  testing.expect_value(t, options.key, "G major")
+  testing.expect_value(t, options.output, "loop.mid")
+  testing.expect_value(t, len(options.operands), 0)
+}
+
+/*
+The values the flags refuse, each reported by the token that carried it: a tempo
+of nothing, a meter whose lower number is not a note value, and a duration of
+zero length.
+*/
+@(test)
+test_options_reject_midi_values_by_token :: proc(t: ^testing.T) {
+  cases := [][]string {
+    { "midi", "--tempo", "0" },
+    { "midi", "--tempo", "fast" },
+    { "midi", "--meter", "4/3" },
+    { "midi", "--duration", "0/4" },
+    { "midi", "--duration", "1/x" },
+  }
+
+  for arguments in cases {
+    _, token, ok := options_parse(arguments, context.temp_allocator)
+    testing.expectf(t, !ok, "%s was accepted", arguments[2])
+    testing.expect_value(t, token, arguments[2])
+  }
+
+  _, missing, missing_ok := options_parse([]string{ "midi", "-o" }, context.temp_allocator)
+  testing.expect(t, !missing_ok)
+  testing.expect_value(t, missing, "-o")
+}
+
+/*
+A duration no flag gave is one bar, which is only as long as the meter says.
+*/
+@(test)
+test_a_bar_is_the_duration_the_meter_gives :: proc(t: ^testing.T) {
+  common,  _, _ := options_parse([]string{ "midi" },                          context.temp_allocator)
+  waltz,   _, _ := options_parse([]string{ "midi", "--meter", "3/4" },        context.temp_allocator)
+  quarter, _, _ := options_parse([]string{ "midi", "--duration", "1/4" },     context.temp_allocator)
+
+  testing.expect_value(t, midi_options(common).duration,  muse.Duration{ 4, 4 })
+  testing.expect_value(t, midi_options(waltz).duration,   muse.Duration{ 3, 4 })
+  testing.expect_value(t, midi_options(quarter).duration, muse.Duration{ 1, 4 })
+}
+
+/*
+A scale sounds as a run of single notes and everything else as one stack, which
+is the difference a voice step in front of the sink makes.
+*/
+@(test)
+test_a_scale_is_a_run_and_a_chord_is_a_stack :: proc(t: ^testing.T) {
+  options, _, _ := options_parse([]string{ "midi" }, context.temp_allocator)
+
+  scale, _ := datum_parse("G major", context.temp_allocator)
+  run, run_ok := midi_items(scale, options, context.temp_allocator)
+  testing.expect(t, run_ok)
+  testing.expect_value(t, len(run), 7)
+  for item in run {
+    testing.expect_value(t, len(item.pitches), 1)
+  }
+
+  chord, _ := datum_parse("Cmaj7", context.temp_allocator)
+  stack, stack_ok := midi_items(chord, options, context.temp_allocator)
+  testing.expect(t, stack_ok)
+  testing.expect_value(t, len(stack), 1)
+  testing.expect_value(t, len(stack[0].pitches), 4)
+
+  voiced, _ := datum_parse("G4 A4 B4 C5 D5 E5 F#5", context.temp_allocator)
+  voiced_items, voiced_ok := midi_items(voiced, options, context.temp_allocator)
+  testing.expect(t, voiced_ok)
+  testing.expect_value(t, len(voiced_items), 1)
+}
+
+/*
+The key signature comes from the input where the input is a scale, from -k where
+it is given, and from nowhere else: a run of chord symbols with no key named
+writes no signature rather than guessing at one.
+*/
+@(test)
+test_a_key_signature_is_written_only_where_a_key_is_known :: proc(t: ^testing.T) {
+  key_signature :: proc(t: ^testing.T, arguments: []string, data: []string) -> ([]u8, bool) {
+    options, _, options_ok := options_parse(arguments, context.temp_allocator)
+    testing.expect(t, options_ok)
+
+    bytes, token, error := midi_bytes(data, options, context.temp_allocator)
+    testing.expectf(t, error == .None, "%s: %v", token, error)
+
+    for index := 0; index + 5 <= len(bytes); index += 1 {
+      if bytes[index] == 0xFF && bytes[index + 1] == 0x59 && bytes[index + 2] == 0x02 {
+        return bytes[index + 3:][:2], true
+      }
+    }
+    return nil, false
+  }
+
+  from_scale, scale_found := key_signature(t, []string{ "midi" }, []string{ "G major" })
+  testing.expect(t, scale_found)
+  testing.expect_value(t, from_scale[0], u8(1))
+  testing.expect_value(t, from_scale[1], u8(0))
+
+  from_flag, flag_found := key_signature(t, []string{ "midi", "-k", "F major" }, []string{ "Dm7", "G7" })
+  testing.expect(t, flag_found)
+  testing.expect_value(t, from_flag[0], u8(0xFF))
+
+  _, chords_found := key_signature(t, []string{ "midi" }, []string{ "Dm7", "G7" })
+  testing.expect(t, !chords_found)
+}
+
+/*
+Every failure a file can have, reported against the line that caused it.
+*/
+@(test)
+test_midi_reports_the_line_that_failed :: proc(t: ^testing.T) {
+  options, _, _ := options_parse([]string{ "midi" }, context.temp_allocator)
+
+  _, nonsense, nonsense_error := midi_bytes([]string{ "Cmaj7", "Hmm" }, options, context.temp_allocator)
+  testing.expect_value(t, nonsense_error, MidiError.NotNotation)
+  testing.expect_value(t, nonsense, "Hmm")
+
+  high, _, _ := options_parse([]string{ "midi", "--octave", "10" }, context.temp_allocator)
+  _, token, range_error := midi_bytes([]string{ "Cmaj7" }, high, context.temp_allocator)
+  testing.expect_value(t, range_error, MidiError.OutOfRange)
+  testing.expect_value(t, token, "Cmaj7")
+
+  keyed, _, _ := options_parse([]string{ "midi", "-k", "H major" }, context.temp_allocator)
+  _, key_token, key_error := midi_bytes([]string{ "Cmaj7" }, keyed, context.temp_allocator)
+  testing.expect_value(t, key_error, MidiError.NotAKey)
+  testing.expect_value(t, key_token, "H major")
+}
+
+/*
+Binary goes to a file or a pipe and never to a screen. TTY detection is a
+parameter here for the same reason it is one in the renderer: the rule can be
+tested without a terminal to test it on.
+*/
+@(test)
+test_midi_refuses_a_terminal_and_nothing_else :: proc(t: ^testing.T) {
+  testing.expect(t, midi_refuses_terminal("", true))
+  testing.expect(t, !midi_refuses_terminal("", false))
+  testing.expect(t, !midi_refuses_terminal("loop.mid", true))
+}
+
+/*
+The sink reads field one and derives the rest, exactly as a transform does, so
+what `muse chords` prints is what `muse midi` encodes.
+*/
+@(test)
+test_the_sink_reads_the_lines_a_transform_prints :: proc(t: ^testing.T) {
+  options, _, _ := options_parse([]string{ "midi" }, context.temp_allocator)
+
+  scale, _ := datum_parse("G major", context.temp_allocator)
+  harmonies, _ := muse.scale_harmonize(scale.(muse.Scale), 4, context.temp_allocator)
+
+  lines := make([dynamic]string, 0, len(harmonies), context.temp_allocator)
+  for harmony, index in harmonies {
+    append(&lines, harmony_row(harmony, index + 1, context.temp_allocator).datum)
+  }
+
+  bytes, token, error := midi_bytes(lines[:], options, context.temp_allocator)
+  testing.expectf(t, error == .None, "%s: %v", token, error)
+  testing.expect_value(t, string(bytes[:4]), "MThd")
+}

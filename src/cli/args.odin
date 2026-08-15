@@ -11,18 +11,31 @@ import "../muse"
 A parsed command line: the command, the positional arguments after it, and the
 flags that change how a result is rendered.
 
-Only a double dash introduces a flag. A single dash opens an interval name, so
-`muse transpose -m3` has to reach its command as an operand.
+Only a double dash introduces a flag, with -o and -k the exceptions: a single
+dash opens an interval name, so `muse transpose -m3` has to reach its command as
+an operand, and no interval is named o or k.
+
+key is the context a name cannot carry, passed explicitly rather than smuggled:
+a MIDI file's key signature is a property of the music around the notes and not
+of the notes themselves.
 
 size is a note count and not the number a musician says: --size 7 is a seventh
 chord and four notes. The spelling is translated here so that no command has to
 know both.
+
+duration is absent rather than defaulted, because the default is one bar and a
+bar is only as long as the meter says. The sink resolves it once both are read.
 */
 Options :: struct {
   command  : string,
   operands : []string,
   size     : int,
   octave   : int,
+  tempo    : int,
+  meter    : muse.Meter,
+  duration : Maybe(muse.Duration),
+  output   : string,
+  key      : string,
   literal  : bool,
   help     : bool,
 }
@@ -43,11 +56,27 @@ options_parse :: proc(
 ) -> (options: Options, token: string, ok: bool) {
   operands := make([dynamic]string, 0, len(arguments), allocator)
 
+  defaults := muse.smf_default_options()
   options.size   = DEFAULT_SIZE
   options.octave = DEFAULT_OCTAVE
+  options.tempo  = defaults.tempo
+  options.meter  = defaults.meter
 
   for index := 0; index < len(arguments); index += 1 {
     argument := arguments[index]
+
+    if argument == "-o" || argument == "-k" {
+      index += 1
+      if index == len(arguments) {
+        return options, argument, false
+      }
+      if argument == "-o" {
+        options.output = arguments[index]
+      } else {
+        options.key = arguments[index]
+      }
+      continue
+    }
 
     if strings.has_prefix(argument, "--") {
       switch argument {
@@ -75,6 +104,42 @@ options_parse :: proc(
           return options, arguments[index], false
         }
         options.octave = octave
+      case "--key":
+        index += 1
+        if index == len(arguments) {
+          return options, argument, false
+        }
+        options.key = arguments[index]
+      case "--tempo":
+        index += 1
+        if index == len(arguments) {
+          return options, argument, false
+        }
+        tempo, tempo_ok := strconv.parse_int(arguments[index], 10)
+        if !tempo_ok || tempo <= 0 {
+          return options, arguments[index], false
+        }
+        options.tempo = tempo
+      case "--meter":
+        index += 1
+        if index == len(arguments) {
+          return options, argument, false
+        }
+        meter, meter_ok := meter_parse(arguments[index])
+        if !meter_ok {
+          return options, arguments[index], false
+        }
+        options.meter = meter
+      case "--duration":
+        index += 1
+        if index == len(arguments) {
+          return options, argument, false
+        }
+        numerator, denominator, duration_ok := fraction_parse(arguments[index])
+        if !duration_ok {
+          return options, arguments[index], false
+        }
+        options.duration = muse.Duration{ numerator, denominator }
       case:
         return options, argument, false
       }
@@ -106,6 +171,45 @@ size_notes :: proc(token: string) -> (int, bool) {
   case "13": return 7, true
   }
   return 0, false
+}
+
+/*
+A note value written as a fraction of a whole note: `1/4` is a quarter and `1`
+is a whole one. Both halves are positive, since a duration of nothing is not a
+duration.
+*/
+fraction_parse :: proc(token: string) -> (numerator, denominator: int, ok: bool) {
+  numerator_text  := token
+  denominator_text := "1"
+
+  if slash := strings.index_byte(token, '/'); slash >= 0 {
+    numerator_text   = token[:slash]
+    denominator_text = token[slash + 1:]
+  }
+
+  numerator, ok = strconv.parse_int(numerator_text, 10)
+  if !ok || numerator <= 0 {
+    return 0, 0, false
+  }
+
+  denominator, ok = strconv.parse_int(denominator_text, 10)
+  if !ok || denominator <= 0 {
+    return 0, 0, false
+  }
+
+  return numerator, denominator, true
+}
+
+/*
+A time signature, written the way it is on a stave. The lower number is a note
+value rather than a count, so it is a power of two and 4/3 is not a meter.
+*/
+meter_parse :: proc(token: string) -> (muse.Meter, bool) {
+  beats, unit, ok := fraction_parse(token)
+  if !ok || unit & (unit - 1) != 0 {
+    return {}, false
+  }
+  return muse.Meter{ beats = beats, unit = unit }, true
 }
 
 /*

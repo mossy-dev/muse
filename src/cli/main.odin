@@ -27,11 +27,17 @@ USAGE ::
   voice <style>            realize as pitches: close open drop2 drop3 shell
   name <notes ...>         identify the chord or scale a note set forms
   in <key>                 annotate input with its degrees in a key
+  midi                     write a Standard MIDI File
   help                     print this message
 
   --size 3|7|9|11|13       how far to stack a harmonization, default 3
   --octave <n>             where a realization sounds, default 4
   --literal                keep the degree a chord's realization drops
+  --tempo <bpm>            beats per minute of a MIDI file, default 120
+  --meter <n/d>            time signature of a MIDI file, default 4/4
+  --duration <n/d>         how long each item sounds, default one bar
+  -k, --key <scale>        the key a MIDI file is written in
+  -o <file>                write a MIDI file here instead of to stdout
 
 Every command reads its operand from its arguments, and from stdin when it has
 none, so any line muse prints can be piped into the next command or typed back
@@ -95,6 +101,8 @@ dispatch :: proc(arguments: []string) -> int {
     return command_name(options)
   case "in":
     return command_in(options)
+  case "midi":
+    return command_midi(options)
   case "help":
     return command_help()
   }
