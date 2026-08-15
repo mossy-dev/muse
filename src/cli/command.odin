@@ -130,46 +130,6 @@ command_chords :: proc(options: Options) -> int {
 }
 
 /*
-Harmonize one degree of a scale, named by number or by roman numeral. A degree
-outside the scale is a well-formed request with no answer rather than a
-malformed one.
-*/
-command_degree :: proc(options: Options) -> int {
-  token, rest, token_ok := operand_take(options)
-  if !token_ok {
-    return fail(EXIT_USAGE, "degree takes a number or a numeral", options.command)
-  }
-
-  degree, degree_ok := degree_read(token)
-  if !degree_ok {
-    return fail(EXIT_USAGE, "not a degree", token)
-  }
-
-  data, data_ok := input_read(rest)
-  if !data_ok {
-    return fail(EXIT_USAGE, "no input", options.command)
-  }
-
-  rows := make([dynamic]Row, 0, len(data))
-  for text in data {
-    scale, scale_ok := scale_read(text)
-    if !scale_ok {
-      return fail(EXIT_USAGE, "not a scale", text)
-    }
-
-    harmony, harmony_ok := muse.scale_chord_at(scale, degree, options.size)
-    if !harmony_ok {
-      return fail(EXIT_NO_ANSWER, "no such degree", token)
-    }
-
-    append(&rows, harmony_row(harmony, degree))
-  }
-
-  render(rows[:])
-  return EXIT_SUCCESS
-}
-
-/*
 Transpose anything by an interval, preserving spelling.
 
 An interval name says which third it means, so `transpose m3` and `transpose A2`

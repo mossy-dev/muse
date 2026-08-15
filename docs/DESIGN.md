@@ -413,7 +413,6 @@ Transforms, which emit notation and compose freely:
 | `scale <root> [name]` | build a scale (default `major`) |
 | `chord <symbol>` | build a chord from a symbol |
 | `chords [degrees…] [--size 3\|7\|9…]` | harmonize a scale: every degree, or the ones named |
-| `degree <n> [--size]` | harmonize one degree; accepts `IV`, `iv`, `4` |
 | `notes` | reduce anything to its bare note list |
 | `interval <a> <b>` | name the interval between two notes |
 | `transpose <interval\|±semitones>` | transpose, preserving spelling |
@@ -434,6 +433,8 @@ Sinks, which end a chain:
 
 Deleted from the old surface: `sevenths` / `7ths`, which was `ChordsCmd` with a
 different default and duplicated its struct verbatim — now `chords --size 7`.
+`degree <n>` went the same way once `chords` took a sequence: one degree is a
+sequence of one, and `muse chords V C major` is what `muse degree V C major` was.
 
 **A degree sequence is a progression.** `muse chords I V vi IV` harmonizes those
 degrees in that order, repeats included, and `muse chords` with none harmonizes

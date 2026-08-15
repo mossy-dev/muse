@@ -19,7 +19,6 @@ USAGE ::
   scale <root> [name]      build a scale, defaulting to major
   chord <symbol>           build a chord from a symbol
   chords [degrees ...]     harmonize a scale, every degree or the ones named
-  degree <n>               harmonize one degree, by number or numeral
   notes                    reduce anything to its bare note list
   interval <a> <b>         name the interval between two notes
   transpose <interval>     transpose, preserving spelling
@@ -85,8 +84,6 @@ dispatch :: proc(arguments: []string) -> int {
     return command_chord(options)
   case "chords":
     return command_chords(options)
-  case "degree":
-    return command_degree(options)
   case "notes":
     return command_notes(options)
   case "interval":
