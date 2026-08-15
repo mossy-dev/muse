@@ -40,6 +40,7 @@ Options :: struct {
   literal  : bool,
   plain    : bool,
   help     : bool,
+  version  : bool,
 }
 
 /*
@@ -98,6 +99,8 @@ options_parse :: proc(
         options.plain = true
       case "--help":
         options.help = true
+      case "--version":
+        options.version = true
       case "--color":
         index += 1
         if index == len(arguments) {

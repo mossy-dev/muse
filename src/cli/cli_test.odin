@@ -39,6 +39,22 @@ test_options_keep_a_single_dash_as_an_operand :: proc(t: ^testing.T) {
   testing.expect_value(t, options.operands[0], "-m3")
 }
 
+/*
+The version is asked for as a flag or as a command, and both reach the same
+answer. A build that was not stamped says so rather than naming a release.
+*/
+@(test)
+test_version_is_a_flag_and_a_command :: proc(t: ^testing.T) {
+  flagged, _, flagged_ok := options_parse([]string{ "--version" }, context.temp_allocator)
+  named,   _, named_ok   := options_parse([]string{ "version" },   context.temp_allocator)
+
+  testing.expect(t, flagged_ok)
+  testing.expect(t, flagged.version)
+  testing.expect(t, named_ok)
+  testing.expect_value(t, named.command, "version")
+  testing.expect(t, len(VERSION) > 0)
+}
+
 @(test)
 test_options_reject_an_unknown_flag_by_name :: proc(t: ^testing.T) {
   _, token, ok := options_parse([]string{ "chord", "--bogus", "C" }, context.temp_allocator)

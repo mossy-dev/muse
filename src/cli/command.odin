@@ -365,6 +365,16 @@ command_help :: proc() -> int {
 }
 
 /*
+Print the version a build was stamped with. A packaged build passes its own
+through `-define:MUSE_VERSION=`, so the binary reports what the package manager
+installed rather than what the source tree last happened to say.
+*/
+command_version :: proc() -> int {
+  os.write_string(os.stdout, fmt.tprintf("muse %s\n", VERSION))
+  return EXIT_SUCCESS
+}
+
+/*
 Reduce anything to its bare note list. This is the command that proves the
 protocol: whatever built the line, what comes out is the note list and nothing
 else, and it parses back as one.

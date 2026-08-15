@@ -13,6 +13,13 @@ EXIT_SUCCESS   :: 0
 EXIT_USAGE     :: 1
 EXIT_NO_ANSWER :: 2
 
+/*
+The version this binary reports. A release build stamps the tag it was cut from
+with `-define:MUSE_VERSION=1.0.0`; a build from a working tree says so instead of
+claiming a release it is not.
+*/
+VERSION :: #config(MUSE_VERSION, "dev")
+
 USAGE ::
 `usage: muse <command> [operand ...]
 
@@ -33,6 +40,7 @@ USAGE ::
   info                     everything muse knows about the input
   keys                     draw the input on an ASCII keyboard
   help                     print this message
+  version                  print the version
 
   --size 3|7|9|11|13       how far to stack a harmonization, default 3
   --octave <n>             where a realization sounds, default 4
@@ -84,6 +92,9 @@ dispatch :: proc(arguments: []string) -> int {
   if options.help {
     return command_help()
   }
+  if options.version {
+    return command_version()
+  }
 
   switch options.command {
   case "":
@@ -121,6 +132,8 @@ dispatch :: proc(arguments: []string) -> int {
     return command_keys(options)
   case "help":
     return command_help()
+  case "version":
+    return command_version()
   }
 
   return fail(EXIT_USAGE, "unknown command", options.command)
