@@ -193,6 +193,35 @@ The key signature is written where the pipeline knows a key — from a scale in 
 input, or from `-k G major`. MIDI collapses Eb and D# to note 63, so this is
 where the spelling work would otherwise stop mattering.
 
+`muse keys` shows what every other command names.
+
+```
+$ muse chord C7 | muse keys
+C7	C E G Bb
+_____________________________
+|  |#| |#|  |  |#| |#| |*|  |
+|  |#| |#|  |  |#| |#| |*|  |
+|  |_| |_|  |  |_| |_| |_|  |
+|   |   |   |   |   |   |   |
+|_*_|___|_*_|___|_*_|___|___|
+  C   D   E   F   G   A   B
+
+$ muse chord Cmaj7 | muse voice drop2 | muse keys
+G3 C4 E4 B4
+_________________________________________________________
+|  |#| |#|  |  |#| |#| |#|  |  |#| |#|  |  |#| |#| |#|  |
+|  |#| |#|  |  |#| |#| |#|  |  |#| |#|  |  |#| |#| |#|  |
+|  |_| |_|  |  |_| |_| |_|  |  |_| |_|  |  |_| |_| |_|  |
+|   |   |   |   |   |   |   |   |   |   |   |   |   |   |
+|___|___|___|___|_*_|___|___|_*_|___|_*_|___|___|___|_*_|
+  C3  D   E   F   G   A   B   C4  D   E   F   G   A   B
+```
+
+A drawing shows a pitch class, so the line above it is where the spelling lives:
+`Bb` is named over the same key `A#` would mark. The span is derived — a chord or
+a scale draws one octave, a voicing draws the octaves it reaches — and there is
+no flag to override it.
+
 ## Commands
 
 Transforms, which emit notation and compose freely:
@@ -218,6 +247,7 @@ Sinks, which end a chain:
 | `json` | structured output for programs; unstable |
 | `numbers` | bare MIDI note numbers, for scripts |
 | `info` | everything muse knows about the input |
+| `keys` | draw the input on an ASCII keyboard |
 
 Flags:
 

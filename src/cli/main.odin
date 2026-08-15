@@ -31,6 +31,7 @@ USAGE ::
   json                     structured output for programs; unstable, see below
   numbers                  bare MIDI note numbers, one line per item
   info                     everything muse knows about the input
+  keys                     draw the input on an ASCII keyboard
   help                     print this message
 
   --size 3|7|9|11|13       how far to stack a harmonization, default 3
@@ -116,6 +117,8 @@ dispatch :: proc(arguments: []string) -> int {
     return command_numbers(options)
   case "info":
     return command_info(options)
+  case "keys":
+    return command_keys(options)
   case "help":
     return command_help()
   }

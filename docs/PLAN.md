@@ -481,7 +481,7 @@ about colour.
 
 ---
 
-## Phase 10 — The keyboard sink
+## Phase 10 — The keyboard sink *(complete)*
 
 An ASCII keyboard with the notes of the input pressed. It is the first output
 that shows rather than names, and it is the cheapest way to make an interval or
@@ -568,6 +568,34 @@ _________________________________________________________
 
 `--octaves` is not in this phase. The span is derived from the datum in both
 cases, and a flag overriding it can wait for someone who wants one.
+
+Built, 6 tests in `cli` and 4 more pipelines in `tests/transcript.txt`. All three
+drawings came out byte-identical to the fixture above on the first run, which is
+the anatomy being derived rather than guessed at.
+
+Four things the build settled:
+
+- **The black keys are read off the letters, not off a table.** There is a black
+  key at a boundary wherever two letters stand two semitones apart, which is
+  `note_pitch_class` answering the question rather than a second statement of it
+  that could drift from the first. The same derivation gives the twelve pitch
+  classes their columns, so `keyboard_columns` is computed from the seven letters
+  that generate it and cannot disagree with them.
+- **The header names exactly what the picture marks.** Field one plus the notes
+  drawn, and nothing else — so `C13` is headed by its six idiomatic notes and not
+  by the `omits 11` column `muse chord` prints, since no key on the drawing
+  answers to that eleventh. A voicing and a note list carry their spelling in
+  field one already and so head a keyboard on their own.
+- **Alignment is not asked of the terminal, where every other command asks.**
+  There is one header row to a keyboard, so column padding has nothing to align
+  against; the drawing under it is a fixed width in any case. That is what makes
+  "piped and terminal are byte-identical apart from color" true by construction
+  rather than by a comparison.
+- **An octave is the letter's, not the sounding pitch's.** `B#3` marks the C at
+  the left of the third keyboard rather than the one at the right of the second,
+  because that is the octave `Pitch` already puts it in. The header carries the
+  spelling that says so, which is the same division of labour the phase opened
+  with.
 
 ---
 
