@@ -11,14 +11,13 @@ valid input to the next.
 $ muse scale C major | muse chords I V vi IV | muse voice drop2 | muse midi > loop.mid
 ```
 
-No project file, no session, no GUI. A 450 KiB binary that reads notation on
-stdin and writes notation on stdout, so the shell you already have is the
-sequencer.
+The binary reads notation on stdin and writes notation on stdout, so the shell
+you already have is the sequencer.
 
 ## Install
 
 Build it. muse needs [Odin](https://odin-lang.org/docs/install/) and nothing
-else — no libraries, no build system, one command:
+else:
 
 ```
 git clone https://github.com/mossy-dev/muse
@@ -26,11 +25,9 @@ cd muse
 odin build src/cli -o:speed -out:muse
 ```
 
-That leaves a 450 KiB binary in the current directory. Put it on your `PATH`
-and you are done.
+Put the resulting binary on your `PATH`.
 
-With [just](https://github.com/casey/just), which is what the repository expects
-of a contributor, there is a little more on offer:
+Or with [just](https://github.com/casey/just):
 
 ```
 just test       # the library, the CLI, and the golden transcripts
@@ -41,33 +38,12 @@ Then `muse --version` and `man muse`.
 
 ### Packages
 
-Not yet published. The Arch and Homebrew packaging is written and lives in
-[`packaging/`](packaging/), and the first tagged release turns it on — along
-with prebuilt binaries for Linux x86_64, macOS arm64 and macOS x86_64. Until
-then, build from source above.
+Not yet published. The Arch and Homebrew packaging lives in
+[`packaging/`](packaging/), and the first tagged release turns it on, along with
+prebuilt binaries for Linux x86_64, macOS arm64 and macOS x86_64.
 
-When it lands, Arch will be `paru -S muse-cli` and macOS `brew install
-mossy-dev/tap/muse`. The Arch package is `muse-cli` rather than `muse` because
-`extra/muse` is already the MusE sequencer; the command it installs is still
-`muse`.
-
-## Notation is the protocol
-
-There is no machine-only format. Every line muse prints has a datum in field
-one, delimited by a tab, and anything after it is annotation for a reader. The
-datum is ordinary notation — `G major`, `Am7`, `C E G`, `G3 C4 E4 B4` — so any
-line can be piped into the next command or typed back in by hand.
-
-That is the whole of the format, and `tests/transcript.txt` is the claim written
-out as pipelines and their answers, re-run by `just test`.
-
-Two consequences worth knowing:
-
-- **A terminal changes layout and colour, never content.** Columns are padded on
-  a terminal and tab-separated in a pipe; field one is the same bytes either way.
-- **Sinks read field one and derive the rest**, exactly as transforms do. If
-  `muse chords G major | muse json` produces complete chord objects, the text
-  protocol carried the whole model.
+When it lands: `paru -S muse-cli` on Arch, `brew install mossy-dev/tap/muse` on
+macOS. The command is `muse` either way.
 
 ## Worked examples
 
@@ -96,9 +72,9 @@ Em7     vi7     E G B D
 F#m7b5  viiø7   F# A C E
 ```
 
-Nothing above is a table. Harmonizing stacks alternate members of the scale and
-names the result by identifying it, so a pentatonic or a blues scale harmonizes
-too, and a stack no template names carries its notes as the datum instead.
+Harmonizing stacks alternate members of the scale and names the result by
+identifying it, so a pentatonic or a blues scale harmonizes too, and a stack
+no template names carries its notes as the datum instead.
 
 A degree sequence is a progression, in the order it was asked for:
 
@@ -111,8 +87,7 @@ F   IV  F A C
 ```
 
 A degree is written `4`, `IV` or `iv`, and the three are the same request. Case
-carries quality when a numeral is printed, which is muse's answer rather than
-the reader's question.
+carries quality when a numeral is printed.
 
 Chord symbols are parsed rather than enumerated, and the degree a realization
 drops is named rather than vanishing:
@@ -210,14 +185,11 @@ G major
   sevenths  Gmaj7 Am7 Bm7 Cmaj7 D7 Em7 F#m7b5
 ```
 
-The JSON schema is **unstable** and may change without notice. It is what muse
-knows about a datum rather than a promise about how that is spelled; it settles
-when something depends on it.
+The JSON schema is **unstable** and may change without notice.
 
-`muse midi` writes a Standard MIDI File to stdout and refuses a terminal, since
-positional arguments belong to the datum and a filename cannot go there. `-o
-FILE` is the alternative. Every item takes the same duration, laid end to end:
-`--tempo`, `--meter` and `--duration` move that, and nothing else about time is
+`muse midi` writes a Standard MIDI File to stdout but refuses a terminal. Use
+`> FILE` or `-o FILE`. Every item takes the same duration, laid end to end:
+`--tempo`, `--meter` and `--duration` move that, but nothing else about time is
 expressible.
 
 ```
@@ -251,11 +223,6 @@ _________________________________________________________
 |___|___|___|___|_*_|___|___|_*_|___|_*_|___|___|___|_*_|
   C3  D   E   F   G   A   B   C4  D   E   F   G   A   B
 ```
-
-A drawing shows a pitch class, so the line above it is where the spelling lives:
-`Bb` is named over the same key `A#` would mark. The span is derived — a chord or
-a scale draws one octave, a voicing draws the octaves it reaches — and there is
-no flag to override it.
 
 ## Commands
 
@@ -300,12 +267,8 @@ Flags:
 | `-o <file>` | write a MIDI file here instead of to stdout |
 | `--help`, `--version` | print the command surface, or the version |
 
-Every command reads its operand from its arguments, and from stdin when it has
-none. Exit codes are `0` for success, `1` for a usage or parse error, and `2` for
-a well-formed request with no musical answer.
+`man muse` says all of this again, at length.
 
-`man muse` says all of this again, at length. The page is generated from the
-binary's own help text, so it cannot describe a flag muse does not have.
 
 ## Platforms
 
@@ -314,7 +277,7 @@ Linux x86_64, macOS arm64 and macOS x86_64 for every change.
 
 Windows is not supported and not refused: there is no platform-specific code in
 the tree — terminal detection goes through `core:terminal`, which handles it —
-so it may already work. Nothing tests it, so nothing claims it.
+so it may already work.
 
 ## Contributing
 
