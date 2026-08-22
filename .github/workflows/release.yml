@@ -45,23 +45,24 @@ jobs:
           echo "version=${tag#v}" >> "${GITHUB_OUTPUT}"
           echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
 
+      # Built to ./build, never to ./muse. `odin test src/muse` names its test
+      # binary after the package directory, so a release binary called muse is
+      # overwritten and then deleted by the very step that tests it.
       - name: Build
         run: |
-          odin build src/cli -o:speed -out:muse \
+          odin build src/cli -o:speed -out:build \
             -define:MUSE_VERSION=${{ steps.version.outputs.version }}
 
       - name: Test
         run: |
           odin test src/muse
           odin test src/cli
-          cp muse build
           ./tests/transcript.sh
-          rm build
 
       - name: Check the binary reports the tag
         run: |
           set -euo pipefail
-          reported=$(./muse --version)
+          reported=$(./build --version)
           expected="muse ${{ steps.version.outputs.version }}"
           if [ "${reported}" != "${expected}" ]; then
             echo "binary says '${reported}', tag says '${expected}'" >&2
@@ -69,14 +70,15 @@ jobs:
           fi
 
       - name: Generate the man page
-        run: ./tools/manpage.sh muse > muse.1
+        run: ./tools/manpage.sh build > muse.1
 
       - name: Package
         run: |
           set -euo pipefail
           name="muse-${{ steps.version.outputs.version }}-${{ matrix.target }}"
           mkdir "${name}"
-          cp muse muse.1 LICENSE README.md "${name}/"
+          cp build "${name}/muse"
+          cp muse.1 LICENSE README.md "${name}/"
           tar czf "${name}.tar.gz" "${name}"
 
       - uses: actions/upload-artifact@v4
