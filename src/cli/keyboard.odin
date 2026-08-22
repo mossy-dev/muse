@@ -30,15 +30,30 @@ KEYBOARD_OCTAVE_COLUMNS :: 28
 
 /*
 A white key is four columns: the wall on its left, and the three of the foot it
-exposes below the black keys. A press is marked on the middle one.
+exposes below the black keys. A press is marked on the middle column of the row
+above that foot, which leaves the foot free to draw the key's outline.
 */
 WHITE_KEY_COLUMNS :: 4
 
 /*
 A black key stands two rows above the white keys and ends on a third. Two is
-enough for it to read as standing over them rather than beside them.
+enough for it to read as standing over them rather than beside them, and the
+lower of the two is where a press on it is marked.
 */
 KEYBOARD_BLACK_ROWS :: 2
+
+/*
+What one column of a keyboard shows. The root is drawn `R` rather than `*` and
+coloured on a terminal, so it survives a pipe on the glyph alone: a mark that
+only a colour distinguished would be lost the moment the drawing left the
+screen, and the drawing is the one output with no words in it to fall back on.
+*/
+@(private)
+KeyMark :: enum {
+  Unpressed,
+  Pressed,
+  Root,
+}
 
 /*
 Draw the input on a keyboard, one keyboard to a datum, with the keys it sounds
@@ -106,13 +121,13 @@ keyboard_block :: proc(
     return .Unspellable
   }
 
-  pressed, register, pressed_ok := keyboard_keys(datum, options.literal, context.temp_allocator)
-  if !pressed_ok {
+  marks, register, marks_ok := keyboard_keys(datum, options.literal, context.temp_allocator)
+  if !marks_ok {
     return .Unspellable
   }
 
   strings.write_string(builder, header)
-  keyboard_draw(builder, pressed, register)
+  keyboard_draw(builder, marks, register, colored)
   return .None
 }
 
@@ -149,14 +164,74 @@ keyboard_header :: proc(
       return "", false
     }
 
+    root, has_root := keyboard_root(datum)
+
     annotations := make([]string, 1, context.temp_allocator)
-    annotations[0] = notes_string(notes, context.temp_allocator)
+    annotations[0] = keyboard_notes(
+      notes, has_root ? root : nil, colored, context.temp_allocator,
+    )
     rows[0].annotations = annotations
   }
 
   return render_text(
     options.plain ? rows_plain(rows, context.temp_allocator) : rows, false, colored, allocator,
   ), true
+}
+
+/*
+The notes a keyboard marks, with the root picked out where the datum names one.
+
+The dim of the annotation column has to be re-established after the root, since
+a reset ends every attribute rather than the colour alone. Nothing here is
+aligned, so the escapes cannot throw a column width out.
+*/
+@(private)
+keyboard_notes :: proc(
+  notes     : []muse.Note,
+  root      : Maybe(muse.Note),
+  colored   : bool,
+  allocator := context.allocator,
+) -> string {
+  spellings := make([]string, len(notes), context.temp_allocator)
+
+  for note, index in notes {
+    spelling := muse.note_string(note, context.temp_allocator)
+
+    if named, has_root := root.?; colored && has_root && note == named {
+      spelling = strings.concatenate(
+        []string{ RESET, ROOT, spelling, RESET, DIM }, context.temp_allocator,
+      )
+    }
+    spellings[index] = spelling
+  }
+
+  return strings.join(spellings, " ", allocator)
+}
+
+/*
+The note a datum calls its root, where it has one to call.
+
+A scale and a chord carry theirs. A voicing and a bare note list do not, so they
+are identified, exactly as `voice` identifies a voicing to name it `Cmaj7/G` --
+a set of notes that names no chord simply has no root to mark.
+*/
+@(private)
+keyboard_root :: proc(datum: Datum) -> (muse.Note, bool) {
+  switch value in datum {
+  case muse.Scale:
+    return value.root, true
+  case muse.Chord:
+    return value.root, true
+  case muse.Voicing:
+    notes := muse.voicing_notes(value, context.temp_allocator)
+    chord, named := muse.chord_identify(notes, context.temp_allocator)
+    return chord.root, named
+  case Notes:
+    chord, named := muse.chord_identify(([]muse.Note)(value), context.temp_allocator)
+    return chord.root, named
+  }
+
+  return {}, false
 }
 
 /*
@@ -176,78 +251,131 @@ keyboard_keys :: proc(
   datum     : Datum,
   literal   : bool,
   allocator := context.allocator,
-) -> (pressed: []bool, register: Maybe(int), ok: bool) {
+) -> (marks: []KeyMark, register: Maybe(int), ok: bool) {
   columns := keyboard_columns()
+  octaves := 1
+  lowest  := 0
 
   if voicing, is_voicing := datum.(muse.Voicing); is_voicing {
-    lowest  := voicing.pitches[0].octave
+    lowest   = voicing.pitches[0].octave
     highest := lowest
     for pitch in voicing.pitches {
       lowest  = min(lowest,  pitch.octave)
       highest = max(highest, pitch.octave)
     }
 
-    octaves := highest - lowest + 1
-    pressed  = make([]bool, keyboard_width(octaves), allocator)
+    octaves = highest - lowest + 1
+    marks   = make([]KeyMark, keyboard_width(octaves), allocator)
     for pitch in voicing.pitches {
       board  := pitch.octave - lowest
       column := board * KEYBOARD_OCTAVE_COLUMNS + columns[muse.note_pitch_class(pitch.note)]
-      pressed[column] = true
+      marks[column] = .Pressed
+    }
+  } else {
+    notes, notes_ok := datum_notes(datum, literal, context.temp_allocator)
+    if !notes_ok {
+      return nil, nil, false
     }
 
-    return pressed, octaves > 1 ? lowest : nil, true
+    marks = make([]KeyMark, keyboard_width(1), allocator)
+    for note in notes {
+      marks[columns[muse.note_pitch_class(note)]] = .Pressed
+    }
   }
 
-  notes, notes_ok := datum_notes(datum, literal, context.temp_allocator)
-  if !notes_ok {
-    return nil, nil, false
+  if root, has_root := keyboard_root(datum); has_root {
+    column := columns[muse.note_pitch_class(root)]
+    for board in 0 ..< octaves {
+      index := board * KEYBOARD_OCTAVE_COLUMNS + column
+      if marks[index] == .Pressed {
+        marks[index] = .Root
+      }
+    }
   }
 
-  pressed = make([]bool, keyboard_width(1), allocator)
-  for note in notes {
-    pressed[columns[muse.note_pitch_class(note)]] = true
-  }
-  return pressed, nil, true
+  return marks, octaves > 1 ? lowest : nil, true
 }
 
 /*
-The drawing itself: the top edge, the two rows a black key stands in, the row it
-ends on, the white keys below it, the feet a press is marked on, and the labels.
+The drawing itself: the top edge, the rows a black key stands in, the row it ends
+on, the white keys below it, the row that closes them, and the labels.
+
+Every key is marked in the row above its own foot, so the two feet draw an
+unbroken outline whatever is pressed and a black mark sits above a white one by
+the same distance the key itself does.
 */
 @(private)
-keyboard_draw :: proc(builder: ^strings.Builder, pressed: []bool, register: Maybe(int)) {
-  for _ in 0 ..< len(pressed) {
+keyboard_draw :: proc(
+  builder  : ^strings.Builder,
+  marks    : []KeyMark,
+  register : Maybe(int),
+  colored  : bool,
+) {
+  for _ in 0 ..< len(marks) {
     strings.write_byte(builder, '_')
   }
   strings.write_byte(builder, '\n')
 
-  for _ in 0 ..< KEYBOARD_BLACK_ROWS {
-    for column in 0 ..< len(pressed) {
-      strings.write_byte(builder, keyboard_black_cell(column, pressed[column] ? '*' : '#'))
+  for row in 0 ..< KEYBOARD_BLACK_ROWS {
+    marking := row == KEYBOARD_BLACK_ROWS - 1
+    for column in 0 ..< len(marks) {
+      face := marking ? keyboard_face(marks[column]) : ' '
+      keyboard_write_cell(builder, keyboard_black_cell(column, face), colored)
     }
     strings.write_byte(builder, '\n')
   }
 
-  for column in 0 ..< len(pressed) {
+  for column in 0 ..< len(marks) {
     strings.write_byte(builder, keyboard_black_cell(column, '_'))
   }
   strings.write_byte(builder, '\n')
 
-  for column in 0 ..< len(pressed) {
-    strings.write_byte(builder, column % WHITE_KEY_COLUMNS == 0 ? '|' : ' ')
-  }
-  strings.write_byte(builder, '\n')
-
-  for column in 0 ..< len(pressed) {
+  for column in 0 ..< len(marks) {
     if column % WHITE_KEY_COLUMNS == 0 {
       strings.write_byte(builder, '|')
     } else {
-      strings.write_byte(builder, pressed[column] ? '*' : '_')
+      keyboard_write_cell(builder, keyboard_face(marks[column]), colored)
     }
   }
   strings.write_byte(builder, '\n')
 
-  keyboard_labels(builder, len(pressed), register)
+  for column in 0 ..< len(marks) {
+    strings.write_byte(builder, column % WHITE_KEY_COLUMNS == 0 ? '|' : '_')
+  }
+  strings.write_byte(builder, '\n')
+
+  keyboard_labels(builder, len(marks), register)
+}
+
+/*
+The character a mark is drawn with. `R` is wider on the page than `*`, which is
+the point: the root is the note the others are heard against, so it should not
+read as the faintest thing on the keyboard.
+*/
+@(private)
+keyboard_face :: proc(mark: KeyMark) -> byte {
+  switch mark {
+  case .Root:      return 'R'
+  case .Pressed:   return '*'
+  case .Unpressed: return ' '
+  }
+  return ' '
+}
+
+/*
+One cell, coloured where it turned out to be the root and the terminal takes
+colour. Every other cell is written as it stands, so the escapes in a drawing
+number exactly as many as there are roots on it.
+*/
+@(private)
+keyboard_write_cell :: proc(builder: ^strings.Builder, cell: byte, colored: bool) {
+  if colored && cell == 'R' {
+    strings.write_string(builder, ROOT)
+    strings.write_byte(builder, cell)
+    strings.write_string(builder, RESET)
+    return
+  }
+  strings.write_byte(builder, cell)
 }
 
 /*

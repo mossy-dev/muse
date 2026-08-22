@@ -16,7 +16,26 @@ you already have is the sequencer.
 
 ## Install
 
-Build it. muse needs [Odin](https://odin-lang.org/docs/install/) and nothing
+On Arch, from the AUR. `muse-cli` builds from source, `muse-cli-bin` takes the
+released binary:
+
+```
+yay -S muse-cli          # or paru, or any AUR helper
+```
+
+On macOS, from the tap:
+
+```
+brew install mossy-dev/tap/muse
+```
+
+The command is `muse` either way.
+
+Prebuilt binaries for Linux x86_64, macOS arm64 and macOS x86_64 are on the
+[releases page](https://github.com/mossy-dev/muse/releases), each with the man
+page and a `SHA256SUMS` to check it against.
+
+Or build it. muse needs [Odin](https://odin-lang.org/docs/install/) and nothing
 else:
 
 ```
@@ -35,15 +54,6 @@ just install    # binary, man page and licence; honours PREFIX and DESTDIR
 ```
 
 Then `muse --version` and `man muse`.
-
-### Packages
-
-Not yet published. The Arch and Homebrew packaging lives in
-[`packaging/`](packaging/), and the first tagged release turns it on, along with
-prebuilt binaries for Linux x86_64, macOS arm64 and macOS x86_64.
-
-When it lands: `paru -S muse-cli` on Arch, `brew install mossy-dev/tap/muse` on
-macOS. The command is `muse` either way.
 
 ## Worked examples
 
@@ -206,23 +216,26 @@ where the spelling work would otherwise stop mattering.
 $ muse chord C7 | muse keys
 C7	C E G Bb
 _____________________________
-|  |#| |#|  |  |#| |#| |*|  |
-|  |#| |#|  |  |#| |#| |*|  |
+|  | | | |  |  | | | | | |  |
+|  | | | |  |  | | | | |*|  |
 |  |_| |_|  |  |_| |_| |_|  |
-|   |   |   |   |   |   |   |
-|_*_|___|_*_|___|_*_|___|___|
+| R |   | * |   | * |   |   |
+|___|___|___|___|___|___|___|
   C   D   E   F   G   A   B
 
 $ muse chord Cmaj7 | muse voice drop2 | muse keys
 G3 C4 E4 B4
 _________________________________________________________
-|  |#| |#|  |  |#| |#| |#|  |  |#| |#|  |  |#| |#| |#|  |
-|  |#| |#|  |  |#| |#| |#|  |  |#| |#|  |  |#| |#| |#|  |
+|  | | | |  |  | | | | | |  |  | | | |  |  | | | | | |  |
+|  | | | |  |  | | | | | |  |  | | | |  |  | | | | | |  |
 |  |_| |_|  |  |_| |_| |_|  |  |_| |_|  |  |_| |_| |_|  |
-|   |   |   |   |   |   |   |   |   |   |   |   |   |   |
-|___|___|___|___|_*_|___|___|_*_|___|_*_|___|___|___|_*_|
+|   |   |   |   | * |   |   | R |   | * |   |   |   | * |
+|___|___|___|___|___|___|___|___|___|___|___|___|___|___|
   C3  D   E   F   G   A   B   C4  D   E   F   G   A   B
 ```
+
+The root is `R` and every other note `*`. On a terminal the `R` and the root's
+name in the line above are yellow; in a pipe the glyph is still there.
 
 ## Commands
 

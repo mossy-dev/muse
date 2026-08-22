@@ -515,9 +515,12 @@ no meaning outside a terminal.
   between E and F or between B and C. This is what makes it a keyboard rather
   than a row of twelve cells, and it is the only part of the drawing with a
   wrong answer.
-- A pressed key is `*`: in the exposed foot of a white key, in place of the `#`
-  on a black one. ASCII and not color, so the drawing survives a pipe, a paste,
-  and a terminal that does no styling.
+- A pressed key is `*`, in the row above that key's own foot: the lower of the
+  two rows a black key stands in, and the exposed body of a white one. Both
+  feet stay unbroken, so an outline is never traded for a mark.
+- The root is `R` rather than `*`, and yellow on a terminal. The glyph carries
+  it and the color only amplifies it, so a pipe, a paste and `--color never`
+  keep the whole of the drawing's meaning.
 - One keyboard per datum, headed by the datum line itself, which is where the
   spelling lives: the picture can only show a pitch class, so `Bb` is named
   above a keyboard that marks the same key `A#` would.
@@ -541,40 +544,59 @@ no meaning outside a terminal.
 $ muse chord C | muse keys
 C	C E G
 _____________________________
-|  |#| |#|  |  |#| |#| |#|  |
-|  |#| |#|  |  |#| |#| |#|  |
+|  | | | |  |  | | | | | |  |
+|  | | | |  |  | | | | | |  |
 |  |_| |_|  |  |_| |_| |_|  |
-|   |   |   |   |   |   |   |
-|_*_|___|_*_|___|_*_|___|___|
+| R |   | * |   | * |   |   |
+|___|___|___|___|___|___|___|
   C   D   E   F   G   A   B
 
 $ muse chord C7 | muse keys
 C7	C E G Bb
 _____________________________
-|  |#| |#|  |  |#| |#| |*|  |
-|  |#| |#|  |  |#| |#| |*|  |
+|  | | | |  |  | | | | | |  |
+|  | | | |  |  | | | | |*|  |
 |  |_| |_|  |  |_| |_| |_|  |
-|   |   |   |   |   |   |   |
-|_*_|___|_*_|___|_*_|___|___|
+| R |   | * |   | * |   |   |
+|___|___|___|___|___|___|___|
   C   D   E   F   G   A   B
 
 $ muse chord Cmaj7 | muse voice drop2 | muse keys
 G3 C4 E4 B4
 _________________________________________________________
-|  |#| |#|  |  |#| |#| |#|  |  |#| |#|  |  |#| |#| |#|  |
-|  |#| |#|  |  |#| |#| |#|  |  |#| |#|  |  |#| |#| |#|  |
+|  | | | |  |  | | | | | |  |  | | | |  |  | | | | | |  |
+|  | | | |  |  | | | | | |  |  | | | |  |  | | | | | |  |
 |  |_| |_|  |  |_| |_| |_|  |  |_| |_|  |  |_| |_| |_|  |
-|   |   |   |   |   |   |   |   |   |   |   |   |   |   |
-|___|___|___|___|_*_|___|___|_*_|___|_*_|___|___|___|_*_|
+|   |   |   |   | * |   |   | R |   | * |   |   |   | * |
+|___|___|___|___|___|___|___|___|___|___|___|___|___|___|
   C3  D   E   F   G   A   B   C4  D   E   F   G   A   B
 ```
 
 `--octaves` is not in this phase. The span is derived from the datum in both
 cases, and a flag overriding it can wait for someone who wants one.
 
-Built, 6 tests in `cli` and 4 more pipelines in `tests/transcript.txt`. All three
-drawings came out byte-identical to the fixture above on the first run, which is
-the anatomy being derived rather than guessed at.
+Built, 6 tests in `cli` and 4 more pipelines in `tests/transcript.txt`.
+
+The fixture above is the second one. The first drew black keys as `#` and marked
+a press by replacing the face, which made a pressed black key the loudest thing
+on the drawing and an unpressed one a wall of hatching. Dropping the `#` proved
+the shape alone tells the two kinds of key apart, and once it was gone the mark
+was the only thing left in those rows -- so it moved to sit above each foot the
+way the white mark does, and both feet got their outline back.
+
+Marking the root came out of the same review. A scale of seven marks gives the
+eye no entry point, and the first idea -- shifting the board to start on the
+root -- buys nothing: a keyboard is not uniform, so the twelve major scales
+still draw twelve different pictures, and a board starting on G has to hang F#
+off the edge it shares with the next one. Naming the root in place costs one
+glyph and keeps the board still, which is what makes a run of keyboards from
+`muse chords` readable as a filmstrip.
+
+The color is the junior partner deliberately. `R` is legible without it, since
+a colour carrying a fact on its own would be a fact the pipe drops, and the
+keyboard is the one output with no words in it to fall back on. That is the
+existing rule about a TTY changing layout and colour but never content, applied
+where it was easiest to break.
 
 Four things the build settled:
 
@@ -666,8 +688,8 @@ Everything this phase needs is written and merged. The phase is running it.
 - Restore the install instructions the README currently withholds, since they
   stop being a promise and start being true.
 
-**Gate** on a machine that has never seen the source, each of `paru -S
-muse-cli`, `paru -S muse-cli-bin` and `brew install mossy-dev/tap/muse` puts a
+**Gate** on a machine that has never seen the source, each of `yay -S
+muse-cli`, `yay -S muse-cli-bin` and `brew install mossy-dev/tap/muse` puts a
 working `muse` and a working `man muse` on the system, and each reports the tag
 it was cut from.
 

@@ -8,33 +8,34 @@ import "../muse"
 /*
 The drawings PLAN.md fixes, without the line that heads them. Comparing them
 verbatim is what enforces the anatomy: black keys straddling a boundary, none
-between E and F or between B and C, and a press in the exposed foot of a white
-key or in place of the face of a black one.
+between E and F or between B and C, every press one row above the foot of the
+key it falls on so that neither foot is ever broken, and the root drawn `R`
+where the rest are drawn `*`.
 */
 KEYBOARD_C :: `_____________________________
-|  |#| |#|  |  |#| |#| |#|  |
-|  |#| |#|  |  |#| |#| |#|  |
+|  | | | |  |  | | | | | |  |
+|  | | | |  |  | | | | | |  |
 |  |_| |_|  |  |_| |_| |_|  |
-|   |   |   |   |   |   |   |
-|_*_|___|_*_|___|_*_|___|___|
+| R |   | * |   | * |   |   |
+|___|___|___|___|___|___|___|
   C   D   E   F   G   A   B
 `
 
 KEYBOARD_C7 :: `_____________________________
-|  |#| |#|  |  |#| |#| |*|  |
-|  |#| |#|  |  |#| |#| |*|  |
+|  | | | |  |  | | | | | |  |
+|  | | | |  |  | | | | |*|  |
 |  |_| |_|  |  |_| |_| |_|  |
-|   |   |   |   |   |   |   |
-|_*_|___|_*_|___|_*_|___|___|
+| R |   | * |   | * |   |   |
+|___|___|___|___|___|___|___|
   C   D   E   F   G   A   B
 `
 
 KEYBOARD_DROP2 :: `_________________________________________________________
-|  |#| |#|  |  |#| |#| |#|  |  |#| |#|  |  |#| |#| |#|  |
-|  |#| |#|  |  |#| |#| |#|  |  |#| |#|  |  |#| |#| |#|  |
+|  | | | |  |  | | | | | |  |  | | | |  |  | | | | | |  |
+|  | | | |  |  | | | | | |  |  | | | |  |  | | | | | |  |
 |  |_| |_|  |  |_| |_| |_|  |  |_| |_|  |  |_| |_| |_|  |
-|   |   |   |   |   |   |   |   |   |   |   |   |   |   |
-|___|___|___|___|_*_|___|___|_*_|___|_*_|___|___|___|_*_|
+|   |   |   |   | * |   |   | R |   | * |   |   |   | * |
+|___|___|___|___|___|___|___|___|___|___|___|___|___|___|
   C3  D   E   F   G   A   B   C4  D   E   F   G   A   B
 `
 
@@ -53,10 +54,10 @@ drawn :: proc(t: ^testing.T, text: string, arguments: []string, colored := false
 
 /*
 The pitch classes a drawing marks, read back off the characters. The header is
-skipped and nothing else needs to be: no other row can carry a star.
+skipped and nothing else needs to be: no other row can carry a mark.
 */
 @(private = "file")
-keyboard_marked :: proc(text: string) -> (marked: [12]bool) {
+keyboard_marked :: proc(text: string, glyph := '\x00') -> (marked: [12]bool) {
   classes : [KEYBOARD_OCTAVE_COLUMNS]int
   for column, pitch_class in keyboard_columns() {
     classes[column] = pitch_class
@@ -67,7 +68,8 @@ keyboard_marked :: proc(text: string) -> (marked: [12]bool) {
 
   for line in strings.split_lines_iterator(&rest) {
     for character, column in line {
-      if character == '*' {
+      wanted := glyph == '\x00' ? character == '*' || character == 'R' : character == glyph
+      if wanted {
         marked[classes[column %% KEYBOARD_OCTAVE_COLUMNS]] = true
       }
     }
@@ -149,7 +151,9 @@ octave in the middle of a run has nothing to trim.
 test_an_octave_is_the_same_drawing_repeated :: proc(t: ^testing.T) {
   draw :: proc(octaves: int) -> []string {
     builder := strings.builder_make(context.temp_allocator)
-    keyboard_draw(&builder, make([]bool, keyboard_width(octaves), context.temp_allocator), nil)
+    keyboard_draw(
+      &builder, make([]KeyMark, keyboard_width(octaves), context.temp_allocator), nil, false,
+    )
     return strings.split_lines(strings.to_string(builder), context.temp_allocator)
   }
 
@@ -167,8 +171,8 @@ test_an_octave_is_the_same_drawing_repeated :: proc(t: ^testing.T) {
 
 /*
 The drawing has a fixed width and never reflows, so a pipe and a terminal differ
-in color and in nothing else. Color reaches the header alone, which is the same
-guarantee every other command's field one already has.
+in color and in nothing else. Strip the escapes from a coloured keyboard and the
+plain one is left, which is the guarantee every other command's field one has.
 */
 @(test)
 test_a_keyboard_does_not_reflow :: proc(t: ^testing.T) {
@@ -178,11 +182,12 @@ test_a_keyboard_does_not_reflow :: proc(t: ^testing.T) {
   testing.expect(t, strings.contains(colored, DIM))
 
   stripped, _ := strings.remove_all(colored, DIM, context.temp_allocator)
+  stripped, _  = strings.remove_all(stripped, ROOT, context.temp_allocator)
   stripped, _  = strings.remove_all(stripped, RESET, context.temp_allocator)
   testing.expect_value(t, stripped, plain)
 
   drawing := colored[strings.index_byte(colored, '\n') + 1:]
-  testing.expect(t, !strings.contains(drawing, "\e"))
+  testing.expect_value(t, strings.count(drawing, "\e"), 2)
 
   bare := drawn(t, "C", []string{ "keys", "--plain" })
   testing.expect(t, strings.has_prefix(bare, "C\n"))
@@ -221,4 +226,72 @@ test_keys_writes_nothing_when_a_line_fails :: proc(t: ^testing.T) {
   testing.expect_value(t, failure, SinkError.NotNotation)
   testing.expect_value(t, token, "Hmm")
   testing.expect_value(t, len(written), 0)
+}
+
+/*
+The root is drawn `R` and every other note `*`, so a reader knows what the rest
+is heard against without reading the header back.
+
+It is the datum's own root wherever the datum states one, and the root of the
+chord a set of notes identifies as where it does not, which is the same answer
+`voice` gives when it names a voicing.
+*/
+@(test)
+test_a_keyboard_marks_the_root_it_is_heard_against :: proc(t: ^testing.T) {
+  roots := []string{ "C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B" }
+
+  for spelling in roots {
+    root, root_ok := muse.note_parse(spelling)
+    testing.expectf(t, root_ok, "%s did not parse", spelling)
+
+    only : [12]bool
+    only[muse.note_pitch_class(root)] = true
+
+    for template in muse.CHORD_TEMPLATES {
+      chord  := muse.chord_make(root, template, context.temp_allocator)
+      symbol := muse.chord_string(chord, context.temp_allocator)
+
+      if _, notes_ok := muse.chord_notes(chord, false, context.temp_allocator); !notes_ok {
+        continue
+      }
+
+      testing.expectf(
+        t,
+        keyboard_marked(drawn(t, symbol, []string{ "keys" }), 'R') == only,
+        "%s does not mark its root, or marks more than one", symbol,
+      )
+    }
+
+    scale := strings.concatenate([]string{ spelling, " major" }, context.temp_allocator)
+    if _, scale_ok := muse.scale_parse(scale, context.temp_allocator); scale_ok {
+      testing.expectf(
+        t,
+        keyboard_marked(drawn(t, scale, []string{ "keys" }), 'R') == only,
+        "%s does not mark its root", scale,
+      )
+    }
+  }
+
+  voicing := keyboard_marked(drawn(t, "G3 C4 E4 B4", []string{ "keys" }), 'R')
+  root_only : [12]bool
+  root_only[0] = true
+  testing.expect_value(t, voicing, root_only)
+}
+
+/*
+The root is coloured on a terminal and legible without colour, which is the rule
+every other use of colour in muse follows. Strip the escapes and the `R` is
+still there; that is what makes the drawing safe to pipe or paste.
+*/
+@(test)
+test_the_root_colour_carries_nothing_the_glyph_does_not :: proc(t: ^testing.T) {
+  colored := drawn(t, "Db major", []string{ "keys" }, true)
+  testing.expect(t, strings.contains(colored, ROOT))
+
+  stripped, _ := strings.remove_all(colored, ROOT, context.temp_allocator)
+  stripped, _  = strings.remove_all(stripped, DIM, context.temp_allocator)
+  stripped, _  = strings.remove_all(stripped, RESET, context.temp_allocator)
+  testing.expect_value(t, stripped, drawn(t, "Db major", []string{ "keys" }))
+
+  testing.expect(t, strings.count(colored, ROOT) == 2)
 }

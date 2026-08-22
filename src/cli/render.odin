@@ -25,6 +25,20 @@ DIM   :: "\e[2m"
 RESET :: "\e[0m"
 
 /*
+The root of a datum, wherever an output picks it out of the notes around it.
+
+Bold yellow rather than a chosen shade: a named ANSI colour asks the terminal
+for its own yellow, where a literal goldenrod would override a palette that has
+already been tuned for its background. Yellow parts from grey in hue and in
+brightness under the common colour deficiencies, which the greens do less well,
+and the bold carries it on a palette where the hue comes out muddy.
+
+It never carries a fact on its own. Whatever this colours is legible without it,
+because a pipe, a redirect and `--color never` all take it away.
+*/
+ROOT :: "\e[1;33m"
+
+/*
 Write rows to stdout, aligned into columns and dimmed on a terminal and
 tab-separated everywhere else.
 
