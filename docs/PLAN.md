@@ -688,8 +688,8 @@ Everything this phase needs is written and merged. The phase is running it.
 - Restore the install instructions the README currently withholds, since they
   stop being a promise and start being true.
 
-**Gate** on a machine that has never seen the source, each of `paru -S
-muse-cli`, `paru -S muse-cli-bin` and `brew install mossy-dev/tap/muse` puts a
+**Gate** on a machine that has never seen the source, each of `yay -S
+muse-cli`, `yay -S muse-cli-bin` and `brew install mossy-dev/tap/muse` puts a
 working `muse` and a working `man muse` on the system, and each reports the tag
 it was cut from.
 
