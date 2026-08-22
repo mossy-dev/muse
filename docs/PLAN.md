@@ -674,7 +674,7 @@ still moving is the wrong promise.
 
 ---
 
-## Phase 11 — First release and packages *(proposed)*
+## Phase 11 — First release and packages *(complete, apart from the AUR)*
 
 Everything this phase needs is written and merged. The phase is running it.
 
@@ -702,6 +702,29 @@ the gate when the packages are published.
 **Why first** the release workflow has never run. Everything downstream ships
 through it, so the phase that discovers it is broken should be the one with
 nothing queued behind it.
+
+`v0.1.0` is published, with `.tar.gz` per platform and a `SHA256SUMS`, and
+`mossy-dev/homebrew-tap` carries `Formula/muse.rb` stamped with the real
+checksums. The AUR half is parked on registration being closed.
+
+The first tag failed on all three platforms, which is the whole of what "why
+first" was betting on. `odin test src/muse` names its test binary after the
+package directory, builds `./muse`, runs it and deletes it -- and the release job
+built its artifact as `-out:muse`, so the first line of the test step overwrote
+the release binary and the last line deleted it. Every test passed; the artifact
+was simply gone by the time it was packaged. CI never saw it because `ci.yml`
+builds to `./build` and never picks the colliding name.
+
+`packaging/aur/muse-cli` had it too, and worse: `check()` deleted the binary
+`package()` installs, so the source package could never have built at all. It
+was fixed unbuilt, since the AUR pause means nothing has run it yet.
+
+Two things worth keeping from that. A build artifact must not be named after a
+package directory that `odin test` also targets -- the collision is silent, and
+it destroys rather than fails. And the transcript runner already expects
+`./build`, so every one of these places had a `cp muse build` / `rm build` dance
+around it that existed only to serve the wrong name; using the justfile's name
+throughout deleted the dance and the bug together.
 
 ---
 

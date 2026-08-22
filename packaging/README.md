@@ -30,8 +30,10 @@ They are not called `muse`. `extra/muse` is the MusE sequencer, and the AUR
 rejects a name the official repositories already hold. The binary is still
 installed as `/usr/bin/muse`, which is free: MusE ships `muse4`.
 
-Publishing needs an AUR account with an SSH key registered, so it is done by
-hand rather than by CI:
+Neither is published yet. AUR account registration was closed when v0.1.0 was
+cut, and publishing needs an account with an SSH key on it.
+
+Publishing is done by hand rather than by CI:
 
 ```
 cd packaging/aur/muse-cli
@@ -50,10 +52,10 @@ cd aur-muse-cli && git commit -am 'v0.1.0' && git push
 
 ## macOS, via Homebrew
 
-`homebrew/muse.rb` is a template for a tap, not a live formula. Create
-`mossy-dev/homebrew-tap` once, then per release copy the file to
-`Formula/muse.rb` there, set `version`, and paste the three checksums out of the
-release's `SHA256SUMS`.
+`homebrew/muse.rb` is a template for a tap, not a live formula. The tap is
+`mossy-dev/homebrew-tap` and already exists; per release, copy the file to
+`Formula/muse.rb` there, drop the template's header comment, set `version`, and
+paste the three checksums out of the release's `SHA256SUMS`.
 
 Users then install with:
 
