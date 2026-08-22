@@ -18,26 +18,26 @@ conflicts=('muse-cli-bin')
 source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
 sha256sums=('SKIP')
 
+# Built to ./build, never to ./muse. `odin test src/muse` in check() names its
+# test binary after the package directory, so a binary called muse would be
+# overwritten and then deleted before package() could install it. ./build is
+# also where the transcript runner looks.
 build() {
   cd "muse-$pkgver"
-  odin build src/cli -o:speed -out:muse -define:MUSE_VERSION="$pkgver"
-  ./tools/manpage.sh muse > muse.1
+  odin build src/cli -o:speed -out:build -define:MUSE_VERSION="$pkgver"
+  ./tools/manpage.sh build > muse.1
 }
 
 check() {
   cd "muse-$pkgver"
   odin test src/muse
   odin test src/cli
-
-  # The transcript runner looks for the binary the justfile leaves at ./build.
-  cp muse build
   ./tests/transcript.sh
-  rm build
 }
 
 package() {
   cd "muse-$pkgver"
-  install -Dm755 muse "$pkgdir/usr/bin/muse"
+  install -Dm755 build "$pkgdir/usr/bin/muse"
   install -Dm644 muse.1 "$pkgdir/usr/share/man/man1/muse.1"
   install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
   install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
