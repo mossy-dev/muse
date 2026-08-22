@@ -16,24 +16,22 @@ you already have is the sequencer.
 
 ## Install
 
-On Arch, from the AUR. `muse-cli` builds from source, `muse-cli-bin` takes the
-released binary:
-
-```
-yay -S muse-cli          # or paru, or any AUR helper
-```
-
 On macOS, from the tap:
 
 ```
 brew install mossy-dev/tap/muse
 ```
 
-The command is `muse` either way.
-
 Prebuilt binaries for Linux x86_64, macOS arm64 and macOS x86_64 are on the
 [releases page](https://github.com/mossy-dev/muse/releases), each with the man
 page and a `SHA256SUMS` to check it against.
+
+On Arch, the packages are not on the AUR yet. The `PKGBUILD`s are in
+[`packaging/aur/`](packaging/aur/) and build today:
+
+```
+cd packaging/aur/muse-cli && makepkg -si
+```
 
 Or build it. muse needs [Odin](https://odin-lang.org/docs/install/) and nothing
 else:
