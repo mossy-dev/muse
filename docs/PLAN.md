@@ -682,16 +682,22 @@ Everything this phase needs is written and merged. The phase is running it.
 - Tag `v0.1.0` and push it. The release workflow builds, tests and publishes on
   Linux x86_64, macOS arm64 and macOS x86_64, and refuses to publish a binary
   whose `--version` disagrees with the tag.
-- Publish `muse-cli` and `muse-cli-bin` to the AUR from `packaging/aur/`.
 - Create `mossy-dev/homebrew-tap` and add `Formula/muse.rb` from
   `packaging/homebrew/`.
 - Restore the install instructions the README currently withholds, since they
   stop being a promise and start being true.
+- **Deferred:** publish `muse-cli` and `muse-cli-bin` to the AUR from
+  `packaging/aur/`. AUR account registration was closed when this phase ran, and
+  publishing needs an account with an SSH key on it. The `PKGBUILD`s are
+  finished and build from the tag, so this is a push waiting on an account and
+  not work waiting to be done. It resumes when registration reopens.
 
-**Gate** on a machine that has never seen the source, each of `yay -S
-muse-cli`, `yay -S muse-cli-bin` and `brew install mossy-dev/tap/muse` puts a
-working `muse` and a working `man muse` on the system, and each reports the tag
-it was cut from.
+**Gate** on a machine that has never seen the source, `brew install
+mossy-dev/tap/muse` puts a working `muse` and a working `man muse` on the
+system, and reports the tag it was cut from. `makepkg -si` in each of
+`packaging/aur/muse-cli` and `packaging/aur/muse-cli-bin` does the same, which
+is the whole of what the AUR would do minus the hosting; `yay -S muse-cli` joins
+the gate when the packages are published.
 
 **Why first** the release workflow has never run. Everything downstream ships
 through it, so the phase that discovers it is broken should be the one with
