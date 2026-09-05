@@ -1,5 +1,6 @@
 package muse
 
+import "core:slice"
 import "core:strings"
 import "core:testing"
 
@@ -30,6 +31,36 @@ intervals_text :: proc(intervals: []Interval) -> string {
     append(&parts, abbreviation)
   }
   return strings.join(parts[:], " ", context.temp_allocator)
+}
+
+@(private)
+notes_of :: proc(text: string) -> []Note {
+  notes := make([dynamic]Note, 0, 8, context.temp_allocator)
+
+  start := 0
+  for index in 0 ..= len(text) {
+    if index < len(text) && text[index] != ' ' {
+      continue
+    }
+    if note, ok := note_parse(text[start:index]); ok {
+      append(&notes, note)
+    }
+    start = index + 1
+  }
+
+  return notes[:]
+}
+
+@(private)
+notes_sorted_text :: proc(notes: []Note) -> string {
+  sorted := slice.clone(notes, context.temp_allocator)
+  slice.sort_by(sorted, proc(a, b: Note) -> bool {
+    if a.letter != b.letter {
+      return a.letter < b.letter
+    }
+    return a.alteration < b.alteration
+  })
+  return notes_text(sorted)
 }
 
 @(private)
@@ -287,12 +318,22 @@ test_chord_identify_reads_a_slash_bass :: proc(t: ^testing.T) {
   testing.expect(t, inverted_ok)
   testing.expect_value(t, chord_string(inverted, context.temp_allocator), "C/E")
 
-  outside, outside_ok := chord_identify(
+  // F# C E G is C with a raised eleventh under its own sharp, and only a chord
+  // no reading accounts for leaves its first note outside: C# against C is a
+  // degree twice over, so the bass is dropped and the triad keeps its name.
+  raised, raised_ok := chord_identify(
     []Note{ { .F, 1 }, { .C, 0 }, { .E, 0 }, { .G, 0 } },
     context.temp_allocator,
   )
+  testing.expect(t, raised_ok)
+  testing.expect_value(t, chord_string(raised, context.temp_allocator), "C(#11)/F#")
+
+  outside, outside_ok := chord_identify(
+    []Note{ { .C, 1 }, { .C, 0 }, { .E, 0 }, { .G, 0 } },
+    context.temp_allocator,
+  )
   testing.expect(t, outside_ok)
-  testing.expect_value(t, chord_string(outside, context.temp_allocator), "C/F#")
+  testing.expect_value(t, chord_string(outside, context.temp_allocator), "C/C#")
 
   // D C E G is C/D and is equally Cadd9/D. The notes do not choose, and a
   // reading that accounts for every note beats one that sets a note aside.
@@ -302,6 +343,232 @@ test_chord_identify_reads_a_slash_bass :: proc(t: ^testing.T) {
   )
   testing.expect(t, ninth_ok)
   testing.expect_value(t, chord_string(ninth, context.temp_allocator), "Cadd9/D")
+}
+
+/*
+The note sets docs/CHORD-SYMBOLS.md spells two ways, with the reading the
+ranking picks and the symbol that loses to it. Neither name is wrong: the notes
+do not choose, so the ranking does, and this table is what it chose.
+*/
+@(private)
+ChordCollision :: struct {
+  notes   : string,
+  reading : string,
+  other   : string,
+}
+
+@(private)
+CHORD_COLLISIONS := []ChordCollision {
+  { "C D E G",         "Cadd9",      "Cadd2" },
+  { "C F G Bb D",      "C11",        "C9sus4" },
+  { "C G Bb F",        "C7sus4",     "C11no9" },
+  { "C E G Bb F",      "Fmaj11/C",   "C11no9" },
+  { "C E G Bb Db F#",  "Edim9b13/C", "C7b9#11" },
+  { "C E G Bb D A",    "C13",        "C13no11" },
+  { "C E G Bb D F# A", "GmMaj13/C",  "C13#11" },
+  { "C G Bb D F A",    "Gm11/C",     "C13sus4" },
+  { "Eb G Bb C",       "Eb6",        "Cm7/Eb" },
+  { "D C E G",         "Cadd9/D",    "C/D" },
+  { "Bb C E G",        "C7/Bb",      "C/Bb" },
+  { "E G A D C",       "D11/E",      "C69/E" },
+}
+
+@(private)
+chord_collision_reading :: proc(notes: string) -> (string, bool) {
+  for collision in CHORD_COLLISIONS {
+    if collision.notes == notes {
+      return collision.reading, true
+    }
+  }
+  return "", false
+}
+
+/*
+The phase gate: every symbol the specification admits is read back from its own
+notes, in both realizations, and the exceptions are the note sets two symbols
+share.
+
+Identification searches bases rather than templates, so a symbol built by
+alteration is named by the alterations that built it -- C E G Bb Db comes back
+as C7b9 and not as a note list. Where two symbols spell one set the ranking
+picks one of them, and CHORD_COLLISIONS says which.
+*/
+@(test)
+test_chord_identification_reads_every_symbol_back :: proc(t: ^testing.T) {
+  for fixture in CHORD_FIXTURES {
+    chord, ok := chord_parse(fixture.input, context.temp_allocator)
+    if !testing.expectf(t, ok, "%s did not parse", fixture.input) {
+      continue
+    }
+
+    for literal in ([2]bool{ false, true }) {
+      notes, notes_ok := chord_notes(chord, literal, context.temp_allocator)
+      if !testing.expectf(t, notes_ok, "%s could not be spelled", fixture.input) {
+        continue
+      }
+
+      expected := fixture.canonical
+      if reading, shared := chord_collision_reading(notes_text(notes)); shared {
+        expected = reading
+      }
+
+      identified, identified_ok := chord_identify(notes, context.temp_allocator)
+      if !testing.expectf(t, identified_ok, "%s was not identified from %s", fixture.input, notes_text(notes)) {
+        continue
+      }
+      testing.expectf(
+        t,
+        chord_string(identified, context.temp_allocator) == expected,
+        "%s realizes as %s, which was identified as %s rather than %s",
+        fixture.input,
+        notes_text(notes),
+        chord_string(identified, context.temp_allocator),
+        expected,
+      )
+    }
+  }
+}
+
+/*
+The property that holds without exception: whatever identification answers with
+spells the notes it was asked about. A collision is two names for one set of
+notes, not a name for a different set, and this is what says so.
+*/
+@(test)
+test_chord_collisions_carry_two_names :: proc(t: ^testing.T) {
+  for collision in CHORD_COLLISIONS {
+    for symbol in ([2]string{ collision.reading, collision.other }) {
+      chord, ok := chord_parse(symbol, context.temp_allocator)
+      if !testing.expectf(t, ok, "%s did not parse", symbol) {
+        continue
+      }
+
+      spelled := false
+      for literal in ([2]bool{ false, true }) {
+        notes, notes_ok := chord_notes(chord, literal, context.temp_allocator)
+        if notes_ok && notes_sorted_text(notes) == notes_sorted_text(notes_of(collision.notes)) {
+          spelled = true
+        }
+      }
+      testing.expectf(t, spelled, "%s does not spell %s", symbol, collision.notes)
+    }
+  }
+}
+
+/*
+Every base identification searches, asked to name itself. The bases are the
+product of the quality and extension tables the parser reads. This test reads
+those tables and not the list identification derives from them, so a quality
+identification stops searching fails here, and a quality added for the parser is
+covered without this test being edited.
+
+No base shares its notes with another reading, in either realization, so every
+one of them comes back as itself. That is a property of the two tables rather
+than a guarantee of the model, and this is where it is asserted.
+*/
+@(test)
+test_chord_identification_covers_every_base :: proc(t: ^testing.T) {
+  for quality_index in -1 ..< len(CHORD_QUALITY_TOKENS) {
+    quality     : ChordQualityToken
+    has_quality := quality_index >= 0
+    if has_quality {
+      quality = CHORD_QUALITY_TOKENS[quality_index]
+    }
+
+    for extension_index in -1 ..< len(CHORD_EXTENSION_TOKENS) {
+      extension     : ChordExtensionToken
+      has_extension := extension_index >= 0
+      if has_extension {
+        extension = CHORD_EXTENSION_TOKENS[extension_index]
+      }
+
+      if has_extension && extension.kind == .Power && has_quality {
+        continue
+      }
+      if quality.requires_seventh && !(has_extension && extension.kind == .Stack) {
+        continue
+      }
+
+      intervals, symbol := chord_build(
+        quality, has_quality, extension, has_extension, nil, context.temp_allocator,
+      )
+      chord := Chord{ root = { .C, 0 }, symbol = symbol, intervals = intervals }
+      text  := chord_string(chord, context.temp_allocator)
+
+      for literal in ([2]bool{ false, true }) {
+        notes, notes_ok := chord_notes(chord, literal, context.temp_allocator)
+        if !testing.expectf(t, notes_ok, "%s could not be spelled", text) {
+          continue
+        }
+
+        identified, identified_ok := chord_identify(notes, context.temp_allocator)
+        if !testing.expectf(t, identified_ok, "%s was not identified from %s", text, notes_text(notes)) {
+          continue
+        }
+
+        testing.expectf(
+          t,
+          chord_string(identified, context.temp_allocator) == text,
+          "%s realizes as %s, which was identified as %s",
+          text,
+          notes_text(notes),
+          chord_string(identified, context.temp_allocator),
+        )
+      }
+    }
+  }
+}
+
+/*
+The chords the template table has no row for, named by the alterations that
+build them. Each of these was a note list before identification searched bases.
+*/
+@(test)
+test_chord_identify_names_an_altered_chord :: proc(t: ^testing.T) {
+  expect_name :: proc(t: ^testing.T, notes, expected: string) {
+    identified, ok := chord_identify(notes_of(notes), context.temp_allocator)
+    if !testing.expectf(t, ok, "%s was not identified", notes) {
+      return
+    }
+    testing.expect_value(t, chord_string(identified, context.temp_allocator), expected)
+  }
+
+  expect_name(t, "C E Gb",          "C(b5)")
+  expect_name(t, "C E G F#",        "C(#11)")
+  expect_name(t, "C E G F",         "Cadd11")
+  expect_name(t, "C E G Bb Db",     "C7b9")
+  expect_name(t, "C E G Bb D#",     "C7#9")
+  expect_name(t, "C E G Bb F#",     "C7#11")
+  expect_name(t, "C E G Bb Ab",     "C7b13")
+  expect_name(t, "C F G B",         "Cmaj7sus4")
+  expect_name(t, "C Eb Gb Bbb D",   "Cdim9")
+  expect_name(t, "C E G Bb D F#",   "C9#11")
+  expect_name(t, "C E G B D F#",    "Cmaj9#11")
+  expect_name(t, "C E G Bb Db A",   "C13b9")
+}
+
+/*
+The two limits on how far a name will reach, each shown at the point it stops.
+
+Three alterations is one more than any symbol the specification admits, and a
+name that long has stopped being shorter than the notes: C E G Ab Db F# is
+C(b9#11b13) if the limit is three and is nothing at two.
+
+The other limit is which degrees a reading may drop. Only the stacked ones --
+the seventh, ninth, eleventh and thirteenth -- may go, so C D E is not a C with
+its fifth omitted and a ninth added. It is three notes with no name.
+*/
+@(test)
+test_chord_identify_stops_where_a_name_stops_helping :: proc(t: ^testing.T) {
+  altered, altered_ok := chord_identify(notes_of("C E G Ab Db"), context.temp_allocator)
+  testing.expect(t, altered_ok)
+  testing.expect_value(t, chord_string(altered, context.temp_allocator), "C(b9b13)")
+
+  _, past_limit := chord_identify(notes_of("C E G Ab Db F#"), context.temp_allocator)
+  testing.expect(t, !past_limit)
+
+  _, cluster := chord_identify(notes_of("C D E"), context.temp_allocator)
+  testing.expect(t, !cluster)
 }
 
 @(test)
@@ -452,12 +719,9 @@ test_chord_add_interval_names_the_result :: proc(t: ^testing.T) {
   testing.expect_value(t, chord_string(ninth, context.temp_allocator), "C9")
 
   altered, altered_ok := chord_add_interval(seventh, AUGMENTED_NINTH, context.temp_allocator)
-  testing.expectf(
-    t,
-    !altered_ok,
-    "C7 with a sharp ninth was named %s",
-    chord_string(altered, context.temp_allocator),
-  )
+  testing.expect(t, altered_ok)
+  testing.expect_value(t, chord_string(altered, context.temp_allocator), "C7#9")
+  testing.expect_value(t, intervals_text(altered.intervals), "P1 M3 P5 m7 A9")
 
   major_seventh, major_seventh_ok := chord_add_interval(seventh, MAJOR_SEVENTH, context.temp_allocator)
   testing.expect(t, major_seventh_ok)

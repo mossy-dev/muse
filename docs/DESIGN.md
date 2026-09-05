@@ -211,17 +211,39 @@ other.
 A, C, E and G are Am7 and are equally C6. The notes do not choose, so the rule
 does, in this order:
 
-1. Prefer the reading rooted on the lowest note supplied. Input order carries
+1. Prefer the reading with fewer modifiers in its symbol. A reading that needs
+   nothing said about it is the name; one that needs two alterations is a worse
+   name and not merely a different one.
+2. Prefer the reading rooted on the lowest note supplied. Input order carries
    information and discarding it would be perverse.
-2. Prefer a tertian reading — a clean stack of thirds from the root — over one
-   that is not.
-3. Prefer the reading with fewer alterations in its symbol.
+3. Prefer the reading whose modifiers come earlier in the order canonical output
+   writes them — suspension, alteration, addition, omission.
 4. Prefer the shorter canonical symbol.
-5. Break remaining ties by root pitch class ascending, so output is stable
-   across runs.
+5. Break remaining ties by symbol ascending, so output is stable across runs.
 
 Only the winner is printed; `--all` lists every match in this order. For
 A C E G rules 1 and 2 agree on Am7, which is the answer a musician gives.
+
+**Rule 1 outranks rule 2, and that ordering is the whole of the ranking.** Once
+identification can name a chord the template table has no row for, some reading
+exists at almost every root, and a first note whose reading is bad would
+otherwise beat a later one whose reading is exact: B D F G is G7 in first
+inversion, and rooted on B it is a diminished triad under a foreign sixth. Rule
+2 was written when every reading was a template hit, which is to say when every
+reading cost the same.
+
+The ordering has a price, and it is paid on the chords that alter a common root
+rather than sitting cleanly on a rare one. C E G Bb Db F# is C7b9#11, two
+alterations on a dominant; it is equally Edim9b13 over a C, one alteration on a
+diminished ninth, and that is the name it gets. No ordering of these five rules
+avoids both that and the B D F G case — the two want opposite things from the
+same pair of numbers — so the rule that keeps inversions right is the one that
+wins.
+
+A tertian reading — a clean stack of thirds from the root — needed a rule of its
+own when readings were template hits. It no longer does: a reading that departs
+from a stack of thirds departs by saying so, in a suspension, an addition or an
+omission, and rules 1 and 3 already count those.
 
 Scale identification uses the same first rule and stops there: the answer is
 rooted at the first note supplied, so C D E F G A B is C major and not A minor.
@@ -738,6 +760,22 @@ remainder as alterations, which is an algorithm rather than a table and fits the
 design. What it needs first is a stated limit — how many alterations are worth
 carrying before "no name" is the more honest answer — and that limit is a
 judgement best made against real output. Deferred until identification exists.
+
+Built in phase 13, and the nearest template turned out to be the wrong thing to
+match. Templates are not a basis: `dim9`, `maj7sus4` and `9sus4` are all
+symbols the parser accepts and the table has no row for, so a remainder measured
+from a template has to describe the missing rows as well as the alteration.
+What identification searches instead is the parser's own construction — a
+quality and an extension stacked by `chord_stack`, optionally suspended — and
+the remainder is measured from that. The space searched is then exactly the
+space of symbols the parser accepts, no outer product is stored, and a quality
+or an extension added later is searched without being named twice.
+
+The limit is two modifiers, and a second limit turned out to matter more than
+the count: **only the stacked degrees — the seventh, ninth, eleventh and
+thirteenth — may be dropped.** A reading that discards the chord's own third or
+fifth is not a name for it. Without that rule `C D E` is `Cadd9no5`, which is a
+cluster wearing a chord symbol, and with it the note list stays the answer.
 
 ---
 

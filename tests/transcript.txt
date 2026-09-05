@@ -96,6 +96,19 @@ C6	C E G A
 $ muse name A C E G
 Am7	A C E G
 
+# A symbol the template table has no row for is named by the alterations that
+# build it, and a set no symbol reaches within the limit is not named at all.
+
+$ muse chord C7b9 | muse name
+C7b9	C E G Bb Db
+
+$ muse name C E G F#
+C(#11)	C E G F#
+
+$ muse name C D E 2>&1; echo "exit $?"
+muse: no name for these notes: C D E
+exit 2
+
 # The sinks: field one in, everything else derived.
 
 $ muse chord Cmaj7 | muse json

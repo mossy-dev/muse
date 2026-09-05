@@ -790,7 +790,7 @@ zsh.
 
 ---
 
-## Phase 13 — Naming altered chords *(proposed)*
+## Phase 13 — Naming altered chords *(complete)*
 
 Parking lot F. Identification matches interval sets against the template table,
 so `C E G Bb Db` — a `C7b9` — has no name and comes back as a note list. The
@@ -815,6 +815,49 @@ as `s`. That is the gate the current tests cannot state.
 close. Both are judgements best made against real output, which is why the
 parking lot deferred them until identification existed. It does now, so they can
 be made rather than guessed.
+
+Nine symbols that came back as note lists now have their own name: `C(b5)`,
+`Cmaj7sus4`, `Cdim9`, `C7#9`, `C7#11`, `C(#11)`, `Cadd11`, `C13b9` and `C7b13`.
+Three that came back under another chord's name — `C7b9` as `Edim7/C`, `C9#11`
+as `Em9b5/C`, `Cmaj9#11` as `Em9/C` — now come back as themselves. Nothing went
+the other way.
+
+Four things the build settled:
+
+- **The nearest template is the wrong thing to match.** Templates are not a
+  basis — `dim9`, `maj7sus4` and `9sus4` are symbols the parser accepts and the
+  table has no row for, so a remainder measured from a template has to describe
+  the missing rows as well as the alteration. What identification searches
+  instead is the parser's own construction: a quality against an extension,
+  stacked by `chord_stack`, optionally suspended. The space searched is exactly
+  the space of symbols the parser accepts, nothing is stored, and a quality or
+  an extension added later is searched without anyone remembering to add it
+  here.
+- **The limit that mattered was not the count.** Two modifiers is the stated
+  ceiling and it does bind — `C E G Ab Db F#` is `C(b9#11b13)` at three and is
+  nothing at two — but the rule that does the work is which degrees a reading
+  may drop. Only the stacked ones may go. Without that, `C D E` is `Cadd9no5`,
+  a cluster wearing a chord symbol; with it the note list stays the answer, and
+  the chromatic harmonization keeps the one line that says a stack can fail to
+  have a name.
+- **Fewer modifiers has to outrank the first note, and it costs something.**
+  Once every root has some reading, a bad reading on the first note beats an
+  exact one further along: B D F G is G7 in first inversion and, rooted on B, a
+  diminished triad under a foreign sixth. Cost first fixes that and loses the
+  other direction — `C E G Bb Db F#` is `Edim9b13/C`, one alteration on a rare
+  base, rather than `C7b9#11`, two on a common one. The two cases want opposite
+  things from the same pair of numbers, so no ordering has both.
+- **The gate cannot be stated as equality, and the exceptions are the
+  deliverable.** Twelve note sets carry two symbols each; identification returns
+  one, and `CHORD_COLLISIONS` in `chord_test.odin` says which, with the symbol
+  it beat beside it. The property that does hold without exception is that the
+  name comes back spelling the notes it was given, and both are asserted.
+
+Both guards were run by breaking them. Allowing a third or a fifth to be dropped
+named `C D E` as `Cadd9no5` and broke the chromatic harmonization; removing the
+parenthesis from canonical output made identification refuse `C#11` — which
+would rebind to a C sharp root — and fall back to `Cmaj#11`, which is the
+re-parse check doing exactly the job it exists for.
 
 ---
 

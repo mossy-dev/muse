@@ -182,6 +182,59 @@ ChordModifier :: struct {
 }
 
 /*
+The six alterations muse reads, each as the degree it changes and the interval
+on either side of the change. A raised fourth is written #11 and a lowered
+sixth b13, so neither needs a row, and everything outside this set is a parse
+error naming the token rather than a guess.
+
+The table is read in both directions. A symbol reaches it by token, and an
+interval set reaches it by holding a row's altered interval where the row's
+natural one was expected, which is how identification names a chord the
+template table has no row for.
+*/
+@(private)
+ChordAlteration :: struct {
+  token   : string,
+  degree  : int,
+  natural : Interval,
+  altered : Interval,
+}
+
+@(rodata)
+@(private)
+CHORD_ALTERATIONS := []ChordAlteration {
+  { "b5",   5, PERFECT_FIFTH,    DIMINISHED_FIFTH   },
+  { "#5",   5, PERFECT_FIFTH,    AUGMENTED_FIFTH    },
+  { "b9",   9, MAJOR_NINTH,      MINOR_NINTH        },
+  { "#9",   9, MAJOR_NINTH,      AUGMENTED_NINTH    },
+  { "#11", 11, PERFECT_ELEVENTH, AUGMENTED_ELEVENTH },
+  { "b13", 13, MAJOR_THIRTEENTH, MINOR_THIRTEENTH   },
+}
+
+/*
+The degrees add contributes, and the interval each one names. A second and a
+ninth are the same pitch class and different intervals, so both are here and a
+voicing can tell them apart.
+*/
+@(private)
+ChordAddition :: struct {
+  token    : string,
+  degree   : int,
+  interval : Interval,
+}
+
+@(rodata)
+@(private)
+CHORD_ADDITIONS := []ChordAddition {
+  { "add2",   2, MAJOR_SECOND     },
+  { "add4",   4, PERFECT_FOURTH   },
+  { "add6",   6, MAJOR_SIXTH      },
+  { "add9",   9, MAJOR_NINTH      },
+  { "add11", 11, PERFECT_ELEVENTH },
+  { "add13", 13, MAJOR_THIRTEENTH },
+}
+
+/*
 Build a chord on a root from a template row. The intervals and the symbol are
 copied rather than borrowed, so nothing hands a caller a slice of rodata.
 */
@@ -194,13 +247,14 @@ chord_make :: proc(root: Note, template: ChordTemplate, allocator := context.all
 }
 
 /*
-Add an interval to a chord, replacing any interval of the same number, and
-rename the result from the template table.
+Add an interval to a chord, replacing any interval of the same number, and name
+the result.
 
-Returns false when the resulting set has no template, because muse would then
-have no canonical way to spell it. Naming a set that is a template plus an
-alteration is parking lot item F in DESIGN.md; until that exists, refusing is
-the honest answer and the caller keeps the chord it had.
+The naming is identification's, asked of the interval set rather than of notes,
+so the result carries the exact intervals it was built from: C7 with an
+augmented ninth is C7#9 and not C7b9 spelled differently. Returns false when
+the set is past the modifier limit, which is the point at which the note list
+is the shorter answer.
 */
 chord_add_interval :: proc(chord: Chord, interval: Interval, allocator := context.allocator) -> (Chord, bool) {
   intervals := make([dynamic]Interval, 0, len(chord.intervals) + 1, context.temp_allocator)
@@ -208,17 +262,14 @@ chord_add_interval :: proc(chord: Chord, interval: Interval, allocator := contex
   intervals_replace(&intervals, interval)
   intervals_sort(intervals[:])
 
-  template, found := chord_template_match(intervals[:])
+  reading, found := chord_read_intervals(chord.root, intervals[:])
   if !found {
     return {}, false
   }
 
-  return Chord {
-    root      = chord.root,
-    symbol    = strings.clone(template.symbol, allocator),
-    intervals = slice.clone(intervals[:], allocator),
-    bass      = chord.bass,
-  }, true
+  named := chord_reading_chord(reading, allocator)
+  named.bass = chord.bass
+  return named, true
 }
 
 /*
@@ -370,18 +421,38 @@ chord_parse :: proc(text: string, allocator := context.allocator) -> (Chord, boo
     rest = remainder
   }
 
+  intervals, symbol := chord_build(quality, has_quality, extension, has_extension, modifiers[:], allocator)
+
+  return Chord {
+    root      = root,
+    symbol    = symbol,
+    intervals = intervals,
+    bass      = bass,
+  }, true
+}
+
+/*
+The interval set a base and its modifiers come to, and the canonical symbol
+naming it. chord_parse reads tokens and calls this; identification proposes
+tokens and calls the same thing, so a name muse prints is a name muse reads.
+*/
+@(private)
+chord_build :: proc(
+  quality       : ChordQualityToken,
+  has_quality   : bool,
+  extension     : ChordExtensionToken,
+  has_extension : bool,
+  modifiers     : []ChordModifier,
+  allocator     := context.allocator,
+) -> ([]Interval, string) {
   intervals := chord_stack(quality, has_quality, extension, has_extension)
   for modifier in modifiers {
     chord_apply_modifier(&intervals, modifier)
   }
   intervals_sort(intervals[:])
 
-  return Chord {
-    root      = root,
-    symbol    = chord_symbol(intervals[:], quality, has_quality, extension, has_extension, modifiers[:], allocator),
-    intervals = slice.clone(intervals[:], allocator),
-    bass      = bass,
-  }, true
+  symbol := chord_symbol(intervals[:], quality, has_quality, extension, has_extension, modifiers, allocator)
+  return slice.clone(intervals[:], allocator), symbol
 }
 
 /*
@@ -480,18 +551,20 @@ chord_ambiguity :: proc(text: string, allocator := context.allocator) -> (string
 }
 
 /*
-Name the chord a set of notes forms, or false when no template matches.
+Name the chord a set of notes forms, or false when nothing within the modifier
+limit reads them.
 
-The reading rooted on the first note supplied wins, per the ranking in
-DESIGN.md: input order carries the bass and discarding it would be perverse, so
-A C E G is Am7 while C E G A is C6. A root further along makes the first note a
-slash bass, and a first note that belongs to no reading is dropped and becomes
-one, which is how a bass outside the chord is recovered.
+A reading is a base -- a quality and an extension, stacked by the same proc the
+parser stacks with -- plus the modifiers that carry whatever the base does not.
+Every root in turn is tried against every base, and the readings that survive
+are ranked by DESIGN.md's order: fewest modifiers, then the earliest root
+supplied, then the modifier order canonical output already uses, then the
+shorter symbol. So A C E G is Am7 while C E G A is C6, and C E G Bb Db is C7b9
+rather than a note list.
 
-The remaining ranking rules have nothing to arbitrate. They separate two
-templates matching at one root, and no two templates realize alike -- a property
-the tests assert rather than assume. They are written when the table admits an
-overlap that needs them.
+A root further along makes the first note a slash bass, and a first note that
+belongs to no reading is dropped and becomes one, which is how a bass outside
+the chord is recovered.
 */
 chord_identify :: proc(notes: []Note, allocator := context.allocator) -> (Chord, bool) {
   unique := make([dynamic]Note, 0, len(notes), context.temp_allocator)
@@ -504,14 +577,9 @@ chord_identify :: proc(notes: []Note, allocator := context.allocator) -> (Chord,
     return {}, false
   }
 
-  for root, index in unique {
-    template, found := chord_match_at_root(root, unique[:])
-    if !found {
-      continue
-    }
-
-    chord := chord_make(root, template, allocator)
-    if index != 0 {
+  if reading, found := chord_read_notes(unique[:]); found {
+    chord := chord_reading_chord(reading, allocator)
+    if reading.root_index != 0 {
       chord.bass = unique[0]
     }
     return chord, true
@@ -521,13 +589,8 @@ chord_identify :: proc(notes: []Note, allocator := context.allocator) -> (Chord,
     return {}, false
   }
 
-  for root in unique[1:] {
-    template, found := chord_match_at_root(root, unique[1:])
-    if !found {
-      continue
-    }
-
-    chord := chord_make(root, template, allocator)
+  if reading, found := chord_read_notes(unique[1:]); found {
+    chord := chord_reading_chord(reading, allocator)
     chord.bass = unique[0]
     return chord, true
   }
@@ -768,59 +831,43 @@ chord_modifier_parse :: proc(text: string) -> (ChordModifier, string, bool) {
   return ChordModifier{ .Alteration, degree, token }, text[sign_width + degree_width:], true
 }
 
-/*
-The six alterations muse reads. A raised fourth is written #11 and a lowered
-sixth b13, so neither needs a token of its own, and everything outside this set
-is a parse error naming the token rather than a guess.
-*/
 @(private)
 chord_alteration_token :: proc(sign: u8, degree: int) -> (string, bool) {
-  switch {
-  case sign == 'b' && degree ==  5: return "b5",  true
-  case sign == '#' && degree ==  5: return "#5",  true
-  case sign == 'b' && degree ==  9: return "b9",  true
-  case sign == '#' && degree ==  9: return "#9",  true
-  case sign == '#' && degree == 11: return "#11", true
-  case sign == 'b' && degree == 13: return "b13", true
+  for alteration in CHORD_ALTERATIONS {
+    lowered := alteration.altered.semitones < alteration.natural.semitones
+    if alteration.degree == degree && lowered == (sign == 'b') {
+      return alteration.token, true
+    }
   }
   return "", false
 }
 
 @(private)
 chord_alteration_interval :: proc(token: string) -> Interval {
-  switch token {
-  case "b5":  return DIMINISHED_FIFTH
-  case "#5":  return AUGMENTED_FIFTH
-  case "b9":  return MINOR_NINTH
-  case "#9":  return AUGMENTED_NINTH
-  case "#11": return AUGMENTED_ELEVENTH
-  case "b13": return MINOR_THIRTEENTH
+  for alteration in CHORD_ALTERATIONS {
+    if alteration.token == token {
+      return alteration.altered
+    }
   }
   return UNISON
 }
 
 @(private)
 chord_addition_token :: proc(degree: int) -> (string, bool) {
-  switch degree {
-  case  2: return "add2",  true
-  case  4: return "add4",  true
-  case  6: return "add6",  true
-  case  9: return "add9",  true
-  case 11: return "add11", true
-  case 13: return "add13", true
+  for addition in CHORD_ADDITIONS {
+    if addition.degree == degree {
+      return addition.token, true
+    }
   }
   return "", false
 }
 
 @(private)
 chord_addition_interval :: proc(degree: int) -> Interval {
-  switch degree {
-  case  2: return MAJOR_SECOND
-  case  4: return PERFECT_FOURTH
-  case  6: return MAJOR_SIXTH
-  case  9: return MAJOR_NINTH
-  case 11: return PERFECT_ELEVENTH
-  case 13: return MAJOR_THIRTEENTH
+  for addition in CHORD_ADDITIONS {
+    if addition.degree == degree {
+      return addition.interval
+    }
   }
   return UNISON
 }
@@ -849,60 +896,487 @@ chord_template_match :: proc(intervals: []Interval) -> (ChordTemplate, bool) {
 }
 
 /*
-The template a set of notes forms when read from the given root, matching both
-the full stack and the realization the omission rule produces so that
-muse chord C13 --literal and muse chord C13 name the same chord.
-
-Comparison is by spelled interval, reduced to within an octave since notes carry
-no register: C to A is a major sixth here whether it was written as a sixth or
-as a thirteenth, but never as a diminished seventh.
+How many modifiers a name may carry before "no name" is the more honest answer.
+Every symbol docs/CHORD-SYMBOLS.md admits needs at most two, and a chord that
+needs three is one a reader would rather see as notes.
 */
 @(private)
-chord_match_at_root :: proc(root: Note, notes: []Note) -> (ChordTemplate, bool) {
-  observed := make([dynamic]Interval, 0, len(notes), context.temp_allocator)
-  for note in notes {
-    append(&observed, interval_between(root, note))
-  }
-  intervals_sort(observed[:])
+CHORD_MODIFIER_LIMIT :: 2
 
-  for template in CHORD_TEMPLATES {
-    if intervals_match_reduced(observed[:], template.intervals, false) {
-      return template, true
+/*
+One way of reading a set of intervals: where it is rooted, the interval set the
+name parses back to, the name, and what it cost to say. cost counts the
+modifiers in the symbol, and a set the template table names costs nothing
+whatever route reached it -- Cm7b5 is a name, not a C minor seventh with a
+remark attached.
+
+kinds orders equal-cost readings by the modifiers they carry, in the order
+canonical output writes them, so a suspension is preferred to an omission and
+C F G B is Cmaj7sus4 rather than Cmaj11no9.
+*/
+@(private)
+ChordReading :: struct {
+  root       : Note,
+  root_index : int,
+  intervals  : []Interval,
+  symbol     : string,
+  cost       : int,
+  kinds      : int,
+}
+
+/*
+The best reading of a set of notes, taken from every root in turn. Comparison
+is by spelled interval, reduced to within an octave since notes carry no
+register: C to A is a major sixth here whether it was written as a sixth or as
+a thirteenth, but never as a diminished seventh.
+*/
+@(private)
+chord_read_notes :: proc(notes: []Note) -> (ChordReading, bool) {
+  best  : ChordReading
+  found := false
+
+  for root, index in notes {
+    observed := make([dynamic]Interval, 0, len(notes), context.temp_allocator)
+    for note in notes {
+      append(&observed, interval_between(root, note))
     }
-    if intervals_match_reduced(observed[:], template.intervals, true) {
-      return template, true
+    intervals_sort(observed[:])
+
+    chord_read_at_root(root, index, observed[:], true, &best, &found)
+  }
+
+  return best, found
+}
+
+/*
+The best reading of an interval set at a known root, matched exactly rather
+than reduced. The set is already a stack measured from its root, so a ninth is
+a ninth and there is no realization to see through.
+*/
+@(private)
+chord_read_intervals :: proc(root: Note, intervals: []Interval) -> (ChordReading, bool) {
+  best  : ChordReading
+  found := false
+
+  chord_read_at_root(root, 0, intervals, false, &best, &found)
+  return best, found
+}
+
+/*
+Every base against one root, keeping the best reading that survives.
+
+A base is a quality and an extension stacked by chord_stack, optionally
+suspended -- the parser's own construction, so the space searched is exactly
+the space of symbols the parser accepts, and no outer product is stored. What
+the base does not account for becomes modifiers, and a candidate is kept only
+once its symbol has been parsed back and found to name the set it came from.
+
+reduced compares within an octave and tries the base's realization as well as
+its full stack, which is how C11's five sounding notes reach the six-interval
+chord that names them.
+*/
+@(private)
+chord_read_at_root :: proc(
+  root       : Note,
+  root_index : int,
+  observed   : []Interval,
+  reduced    : bool,
+  best       : ^ChordReading,
+  found      : ^bool,
+) {
+  qualities  := chord_canonical_qualities()
+  extensions := chord_canonical_extensions()
+
+  for quality_index in -1 ..< len(qualities) {
+    quality     : ChordQualityToken
+    has_quality := quality_index >= 0
+    if has_quality {
+      quality = qualities[quality_index]
+    }
+
+    for extension_index in -1 ..< len(extensions) {
+      extension     : ChordExtensionToken
+      has_extension := extension_index >= 0
+      if has_extension {
+        extension = extensions[extension_index]
+      }
+
+      if has_extension && extension.kind == .Power && has_quality {
+        continue
+      }
+      if quality.requires_seventh && !(has_extension && extension.kind == .Stack) {
+        continue
+      }
+
+      for suspension in CHORD_SUSPENSIONS {
+        base := chord_stack(quality, has_quality, extension, has_extension)
+        if suspension.degree != 0 {
+          chord_apply_modifier(&base, suspension)
+        }
+        intervals_sort(base[:])
+
+        omitted, has_omission := intervals_omission(base[:])
+        for omit in ([2]bool{ false, true }) {
+          if omit && !(reduced && has_omission) {
+            continue
+          }
+
+          realized := make([dynamic]Interval, 0, len(base), context.temp_allocator)
+          for interval in base {
+            if omit && interval == omitted {
+              continue
+            }
+            append(&realized, interval)
+          }
+
+          modifiers := make([dynamic]ChordModifier, 0, CHORD_MODIFIER_LIMIT + 1, context.temp_allocator)
+          if suspension.degree != 0 {
+            append(&modifiers, suspension)
+          }
+
+          if !chord_derive_modifiers(observed, realized[:], reduced, &modifiers) {
+            continue
+          }
+          if len(modifiers) > CHORD_MODIFIER_LIMIT {
+            continue
+          }
+
+          intervals, symbol := chord_build(
+            quality, has_quality, extension, has_extension, modifiers[:], context.temp_allocator,
+          )
+          if !chord_realizes_as(intervals, observed, reduced) {
+            continue
+          }
+
+          cost := len(modifiers)
+          if _, is_template := chord_template_match(intervals); is_template {
+            cost = 0
+          }
+
+          reading := ChordReading {
+            root       = root,
+            root_index = root_index,
+            intervals  = intervals,
+            symbol     = symbol,
+            cost       = cost,
+            kinds      = chord_reading_kinds(modifiers[:]),
+          }
+          if found^ && !chord_reading_better(reading, best^) {
+            continue
+          }
+          if !chord_reading_reparses(reading) {
+            continue
+          }
+
+          best^  = reading
+          found^ = true
+        }
+      }
+    }
+  }
+}
+
+/*
+The three things a base may do with its third: keep it, or replace it with a
+second or a fourth.
+*/
+@(rodata)
+@(private)
+CHORD_SUSPENSIONS := []ChordModifier {
+  {},
+  { .Suspension, 2, "sus2" },
+  { .Suspension, 4, "sus4" },
+}
+
+/*
+The modifiers that carry an observed set beyond a base, or false when notation
+has no way to say the difference.
+
+Degrees are compared one at a time, a degree being a step count within an
+octave, so a ninth answers for a second and an eleventh for a fourth. A degree
+the base holds and the set alters becomes an alteration; one the set holds
+alone becomes an alteration where the interval is an altered one and an
+addition otherwise; one the base holds and the set drops becomes an omission.
+
+Only the stacked degrees -- the seventh, ninth, eleventh and thirteenth -- may
+be dropped. A reading that discards the chord's own third or fifth is not a
+name for it, and refusing there is what keeps a cluster reported as the notes
+it is.
+*/
+@(private)
+chord_derive_modifiers :: proc(
+  observed  : []Interval,
+  base      : []Interval,
+  reduced   : bool,
+  modifiers : ^[dynamic]ChordModifier,
+) -> bool {
+  base_intervals,     base_present,     base_ok     := intervals_by_degree(base)
+  observed_intervals, observed_present, observed_ok := intervals_by_degree(observed)
+  if !base_ok || !observed_ok {
+    return false
+  }
+
+  for degree in 0 ..< 7 {
+    switch {
+    case !base_present[degree] && !observed_present[degree]:
+      continue
+
+    case base_present[degree] && observed_present[degree]:
+      if intervals_agree(base_intervals[degree], observed_intervals[degree], reduced) {
+        continue
+      }
+      alteration, ok := chord_alteration_replacing(base_intervals[degree], observed_intervals[degree], reduced)
+      if !ok {
+        return false
+      }
+      append(modifiers, ChordModifier{ .Alteration, alteration.degree, alteration.token })
+
+    case base_present[degree]:
+      number    := interval_number(base_intervals[degree])
+      token, ok := chord_omission_token(number)
+      if number < 7 || !ok {
+        return false
+      }
+      append(modifiers, ChordModifier{ .Omission, number, token })
+
+    case:
+      if alteration, ok := chord_alteration_adding(observed_intervals[degree], reduced); ok {
+        append(modifiers, ChordModifier{ .Alteration, alteration.degree, alteration.token })
+        continue
+      }
+      addition, ok := chord_addition_adding(observed_intervals[degree], reduced)
+      if !ok {
+        return false
+      }
+      append(modifiers, ChordModifier{ .Addition, addition.degree, addition.token })
+    }
+
+    if len(modifiers) > CHORD_MODIFIER_LIMIT {
+      return false
+    }
+  }
+
+  return true
+}
+
+/*
+Whether an interval set realizes as the set observed, with every interval
+reduced when the observation came from notes. This is the check that makes the
+derivation answerable to something other than itself.
+
+Both realizations count. muse chord C13 and muse chord C13 --literal are the
+same chord printed two ways, so both note sets have to reach C13, which means
+the omission is a form the set may take and not one it must.
+*/
+@(private)
+chord_realizes_as :: proc(intervals: []Interval, observed: []Interval, reduced: bool) -> bool {
+  omitted, has_omission := intervals_omission(intervals)
+
+  for omit in ([2]bool{ false, true }) {
+    if omit && !(reduced && has_omission) {
+      continue
+    }
+
+    realized := make([dynamic]Interval, 0, len(intervals), context.temp_allocator)
+    for interval in intervals {
+      if omit && interval == omitted {
+        continue
+      }
+      append(&realized, reduced ? interval_simple(interval) : interval)
+    }
+    intervals_sort(realized[:])
+
+    if intervals_equal(realized[:], observed) {
+      return true
+    }
+  }
+
+  return false
+}
+
+/*
+Whether a reading's symbol, written on its root, reads back as the chord it
+names. A name muse cannot parse is not a name, and the one hazard is real: an
+alteration written bare against a root letter rebinds to the root, which is why
+canonical output parenthesizes it and why this asks rather than assumes.
+*/
+@(private)
+chord_reading_reparses :: proc(reading: ChordReading) -> bool {
+  text := strings.concatenate(
+    { note_string(reading.root, context.temp_allocator), reading.symbol },
+    context.temp_allocator,
+  )
+
+  parsed, ok := chord_parse(text, context.temp_allocator)
+  if !ok || parsed.root != reading.root {
+    return false
+  }
+  return intervals_equal(parsed.intervals, reading.intervals)
+}
+
+/*
+DESIGN.md's ranking, in order: fewest modifiers, the earliest root supplied,
+the modifier order canonical output uses, the shorter symbol, and the symbol
+itself so that two runs answer alike.
+*/
+@(private)
+chord_reading_better :: proc(candidate, best: ChordReading) -> bool {
+  if candidate.cost != best.cost {
+    return candidate.cost < best.cost
+  }
+  if candidate.root_index != best.root_index {
+    return candidate.root_index < best.root_index
+  }
+  if candidate.kinds != best.kinds {
+    return candidate.kinds < best.kinds
+  }
+  if len(candidate.symbol) != len(best.symbol) {
+    return len(candidate.symbol) < len(best.symbol)
+  }
+  return candidate.symbol < best.symbol
+}
+
+/*
+A reading's modifier kinds as one number, ascending, with absent slots ranking
+last so that fewer modifiers of the same kind sort ahead of more.
+*/
+@(private)
+chord_reading_kinds :: proc(modifiers: []ChordModifier) -> int {
+  sorted := slice.clone(modifiers, context.temp_allocator)
+  slice.sort_by(sorted, proc(a, b: ChordModifier) -> bool {
+    return a.kind < b.kind
+  })
+
+  absent := len(ChordModifierKind)
+  key    := 0
+  for index in 0 ..< CHORD_MODIFIER_LIMIT {
+    digit := absent
+    if index < len(sorted) {
+      digit = int(sorted[index].kind)
+    }
+    key = key * (absent + 1) + digit
+  }
+  return key
+}
+
+@(private)
+chord_reading_chord :: proc(reading: ChordReading, allocator := context.allocator) -> Chord {
+  return Chord {
+    root      = reading.root,
+    symbol    = strings.clone(reading.symbol, allocator),
+    intervals = slice.clone(reading.intervals, allocator),
+  }
+}
+
+/*
+One quality per canonical spelling, and one extension per canonical token, read
+off the tables the parser reads. The bases identification searches are the
+product of these two, so a quality or an extension added for the parser is
+searched by identification without being named twice.
+
+A quality carrying an alteration is skipped: it is a spelling of another
+quality and that alteration, and the alteration reaches the set as a modifier.
+*/
+@(private)
+chord_canonical_qualities :: proc() -> []ChordQualityToken {
+  qualities := make([dynamic]ChordQualityToken, 0, len(CHORD_QUALITY_TOKENS), context.temp_allocator)
+
+  for candidate in CHORD_QUALITY_TOKENS {
+    if len(candidate.alteration) > 0 {
+      continue
+    }
+
+    named := false
+    for quality in qualities {
+      if quality.symbol == candidate.symbol {
+        named = true
+        break
+      }
+    }
+    if !named {
+      append(&qualities, candidate)
+    }
+  }
+
+  return qualities[:]
+}
+
+@(private)
+chord_canonical_extensions :: proc() -> []ChordExtensionToken {
+  extensions := make([dynamic]ChordExtensionToken, 0, len(CHORD_EXTENSION_TOKENS), context.temp_allocator)
+
+  for candidate in CHORD_EXTENSION_TOKENS {
+    named := false
+    for extension in extensions {
+      if extension.symbol == candidate.symbol {
+        named = true
+        break
+      }
+    }
+    if !named {
+      append(&extensions, candidate)
+    }
+  }
+
+  return extensions[:]
+}
+
+@(private)
+chord_alteration_replacing :: proc(natural, altered: Interval, reduced: bool) -> (ChordAlteration, bool) {
+  for alteration in CHORD_ALTERATIONS {
+    if alteration.natural == natural && intervals_agree(alteration.altered, altered, reduced) {
+      return alteration, true
+    }
+  }
+  return {}, false
+}
+
+@(private)
+chord_alteration_adding :: proc(interval: Interval, reduced: bool) -> (ChordAlteration, bool) {
+  for alteration in CHORD_ALTERATIONS {
+    if intervals_agree(alteration.altered, interval, reduced) {
+      return alteration, true
     }
   }
   return {}, false
 }
 
 /*
-Whether a set of intervals is a template's, reduced to within an octave and
-optionally with the omission applied. Sizes have to agree and every reduced
-template interval has to appear, which settles it: no template reduces to two
-copies of one interval, so there is nothing for a count to disagree about.
+The addition an interval names, highest degree first: reduced to within an
+octave a second and a ninth are one note, and the ninth is the one a symbol
+that stacks anything at all means.
 */
 @(private)
-intervals_match_reduced :: proc(observed: []Interval, intervals: []Interval, omit: bool) -> bool {
-  omitted, has_omission := intervals_omission(intervals)
-
-  size := len(intervals)
-  if omit && has_omission {
-    size -= 1
+chord_addition_adding :: proc(interval: Interval, reduced: bool) -> (ChordAddition, bool) {
+  #reverse for addition in CHORD_ADDITIONS {
+    if intervals_agree(addition.interval, interval, reduced) {
+      return addition, true
+    }
   }
-  if size != len(observed) {
-    return false
-  }
+  return {}, false
+}
 
+/*
+An interval set indexed by degree within an octave, so that a base and an
+observation can be compared a degree at a time. Returns false when two
+intervals land on one degree, which is a set no symbol spells.
+*/
+@(private)
+intervals_by_degree :: proc(intervals: []Interval) -> (found: [7]Interval, present: [7]bool, ok: bool) {
   for interval in intervals {
-    if omit && has_omission && interval == omitted {
-      continue
+    degree := interval_simple(interval).steps
+    if present[degree] {
+      return {}, {}, false
     }
-    if !slice.contains(observed, interval_simple(interval)) {
-      return false
-    }
+    found[degree]   = interval
+    present[degree] = true
   }
-  return true
+  return found, present, true
+}
+
+@(private)
+intervals_agree :: proc(interval, other: Interval, reduced: bool) -> bool {
+  return reduced ? interval_simple(interval) == interval_simple(other) : interval == other
 }
 
 @(private)
