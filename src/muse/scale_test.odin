@@ -482,3 +482,21 @@ test_scale_transposition_spells_by_the_interval :: proc(t: ^testing.T) {
   testing.expect(t, notes_ok)
   testing.expect_value(t, notes_text(notes), "D E F# G A B C#")
 }
+
+/*
+The vocabulary and the parser are the same table read twice, so every name a
+scale answers to builds the scale it names.
+*/
+@(test)
+test_every_scale_name_parses :: proc(t: ^testing.T) {
+  names := scale_names(context.temp_allocator)
+  testing.expect(t, len(names) >= len(SCALE_TEMPLATES))
+
+  for name in names {
+    text := strings.concatenate([]string{ "C ", name }, context.temp_allocator)
+    scale, ok := scale_parse(text, context.temp_allocator)
+    testing.expectf(t, ok, "%s does not name a scale", name)
+    testing.expect(t, len(scale.intervals) > 0)
+  }
+}
+

@@ -213,6 +213,22 @@ scale_transpose :: proc(scale: Scale, interval: Interval, allocator := context.a
 }
 
 /*
+Every name a scale answers to: each template's own name followed by its aliases,
+in table order. This is the vocabulary scale_parse accepts, read off the table
+that defines it rather than listed a second time.
+*/
+scale_names :: proc(allocator := context.allocator) -> []string {
+  names := make([dynamic]string, 0, len(SCALE_TEMPLATES) * 2, allocator)
+  for template in SCALE_TEMPLATES {
+    append(&names, template.name)
+    for alias in template.aliases {
+      append(&names, alias)
+    }
+  }
+  return names[:]
+}
+
+/*
 Read a scale name: a root, a space, and a template name or one of its aliases.
 The name is matched without regard to case, so "G Major" and "g major" differ
 only in the root, which is case sensitive because note letters are.

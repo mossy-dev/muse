@@ -58,6 +58,7 @@ jobs:
           odin test src/muse
           odin test src/cli
           ./tests/transcript.sh
+          ./tests/completions.sh
 
       - name: Check the binary reports the tag
         run: |
@@ -72,6 +73,14 @@ jobs:
       - name: Generate the man page
         run: ./tools/manpage.sh build > muse.1
 
+      - name: Generate the completions
+        run: |
+          set -euo pipefail
+          mkdir completions
+          ./tools/completions.sh build bash > completions/muse.bash
+          ./tools/completions.sh build zsh > completions/_muse
+          ./tools/completions.sh build fish > completions/muse.fish
+
       - name: Package
         run: |
           set -euo pipefail
@@ -79,6 +88,7 @@ jobs:
           mkdir "${name}"
           cp build "${name}/muse"
           cp muse.1 LICENSE README.md "${name}/"
+          cp -R completions "${name}/"
           tar czf "${name}.tar.gz" "${name}"
 
       - uses: actions/upload-artifact@v4

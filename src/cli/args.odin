@@ -185,30 +185,45 @@ options_parse :: proc(
 }
 
 /*
-The note count a chord size names. The flag speaks the musician's numbers, where
-a 7 is a seventh chord and a 13 reaches every odd degree below it, and everything
-downstream counts notes.
+The sizes --size takes, each with the number of notes it stacks. The flag speaks
+the musician's numbers, where a 7 is a seventh chord and a 13 reaches every odd
+degree below it, and everything downstream counts notes. A triad is the one that
+is not its top degree plus one, which is why this is a table.
+*/
+@(rodata)
+SIZES := []struct{ token: string, notes: int } {
+  { "3", 3 }, { "7", 4 }, { "9", 5 }, { "11", 6 }, { "13", 7 },
+}
+
+/*
+The note count a chord size names.
 */
 size_notes :: proc(token: string) -> (int, bool) {
-  switch token {
-  case "3":  return 3, true
-  case "7":  return 4, true
-  case "9":  return 5, true
-  case "11": return 6, true
-  case "13": return 7, true
+  for size in SIZES {
+    if size.token == token {
+      return size.notes, true
+    }
   }
   return 0, false
 }
 
 /*
-The three answers to whether output is colored. There is no fourth, and a token
-that is none of them is a usage error rather than a silent fall back to auto.
+The word each answer is spelled with. There is no fourth, and a token that is
+none of them is a usage error rather than a silent fall back to auto.
+*/
+@(rodata)
+COLORS := []struct{ token: string, color: Color } {
+  { "auto", .Auto }, { "always", .Always }, { "never", .Never },
+}
+
+/*
+The colour setting a token names.
 */
 color_parse :: proc(token: string) -> (Color, bool) {
-  switch token {
-  case "auto":   return .Auto,   true
-  case "always": return .Always, true
-  case "never":  return .Never,  true
+  for entry in COLORS {
+    if entry.token == token {
+      return entry.color, true
+    }
   }
   return .Auto, false
 }

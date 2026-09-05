@@ -460,6 +460,20 @@ An earlier draft also listed `csv`, cut for being a flatter `json` aimed at a
 spreadsheet nobody had asked for. `json` covers structured output and `numbers`
 covers the scripting case between them.
 
+### The surface is a table, and everything that describes it reads that table
+
+`muse help`, the man page, dispatch and the three shell completions all describe
+the same commands and flags, and four descriptions kept by hand are four things
+to forget. So `COMMANDS` and `FLAGS` in `src/cli/surface.odin` hold the surface
+once: the usage text is rendered from it, dispatch looks a command up in it, and
+`muse help <topic>` reports it in a form a generator can read.
+
+A topic is a vocabulary — `scales`, `styles`, `degrees`, `colors`, `sizes` — and
+each one is read off the table that already defines it rather than listed a
+second time, so completing a scale name offers what `scale` accepts by
+construction. Topics that name a shape nothing can enumerate, such as a number or
+a file, hold no words and complete as the shell would.
+
 ### A transform needs no context its input does not carry
 
 An earlier draft listed `extend <n>`, growing chords on stdin to sevenths and
@@ -632,6 +646,10 @@ run by `just test`, with the properties the model makes available:
   is asserted rather than assumed.
 - **Golden CLI transcripts.** The pipeline examples above, compared verbatim, so
   the "output is valid input" claim is enforced rather than aspirational.
+- **The completions are asked of the binary.** `tests/completions.sh` generates
+  all three and checks them against `muse help`, driving bash and zsh for real
+  where they are installed. Nothing in it holds a list of its own, so a command
+  that reaches one shell and not another fails it.
 
 ---
 

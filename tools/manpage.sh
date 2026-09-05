@@ -152,6 +152,18 @@ and a filename cannot go there. Redirect it, or use
 The JSON schema is unstable and may change without notice. It says what
 .B muse
 knows about a datum rather than promising how that is spelled.
+.SH FILES
+.TP
+.I <prefix>/share/bash\-completion/completions/muse
+.TQ
+.I <prefix>/share/zsh/site\-functions/_muse
+.TQ
+.I <prefix>/share/fish/vendor_completions.d/muse.fish
+Shell completions for the commands, the flags, and the words each one takes.
+They are generated from the same command surface this page is, so they complete
+what
+.B muse
+accepts rather than a list that agreed with it once.
 .SH SEE ALSO
 The full documentation, including the chord grammar and the design, is at
 .PP

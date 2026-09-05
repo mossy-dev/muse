@@ -26,6 +26,9 @@ build() {
   cd "muse-$pkgver"
   odin build src/cli -o:speed -out:build -define:MUSE_VERSION="$pkgver"
   ./tools/manpage.sh build > muse.1
+  ./tools/completions.sh build bash > muse.bash
+  ./tools/completions.sh build zsh > _muse
+  ./tools/completions.sh build fish > muse.fish
 }
 
 check() {
@@ -33,12 +36,16 @@ check() {
   odin test src/muse
   odin test src/cli
   ./tests/transcript.sh
+  ./tests/completions.sh
 }
 
 package() {
   cd "muse-$pkgver"
   install -Dm755 build "$pkgdir/usr/bin/muse"
   install -Dm644 muse.1 "$pkgdir/usr/share/man/man1/muse.1"
+  install -Dm644 muse.bash "$pkgdir/usr/share/bash-completion/completions/muse"
+  install -Dm644 _muse "$pkgdir/usr/share/zsh/site-functions/_muse"
+  install -Dm644 muse.fish "$pkgdir/usr/share/fish/vendor_completions.d/muse.fish"
   install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
   install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
 }

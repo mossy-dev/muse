@@ -728,13 +728,14 @@ throughout deleted the dance and the bug together.
 
 ---
 
-## Phase 12 — Shell completions *(proposed)*
+## Phase 12 — Shell completions *(complete)*
 
 The command surface is sixteen commands and eleven flags, several taking a
 vocabulary a reader has to remember. Completion is the cheapest thing that makes
 it feel finished.
 
-**Files:** `tools/completions.sh`, `packaging/*`, `justfile`
+**Files:** `src/cli/surface.odin`, `tools/completions.sh`,
+`tests/completions.sh`, `packaging/*`, `justfile`
 
 **Build**
 - bash, zsh and fish completion for the commands, the flags, and the vocabulary
@@ -751,10 +752,41 @@ it feel finished.
 completion file edited by hand. Completing a scale name offers what `scale`
 actually accepts, not a list that agrees with it today.
 
-**Open** whether the vocabulary is generated too. Scale and voicing names live
-in the library's template tables; exposing them as a machine-readable list is
-the difference between completion that stays true and completion that drifts,
-and it is the same argument the man page already settled once.
+**Open, and now settled: the vocabulary is generated too.** `muse help <topic>`
+prints the words a topic holds -- `scales`, `styles`, `degrees`, `colors`,
+`sizes` -- each read off the table that already defines it, and the generator
+asks for them the way it asks for the commands.
+
+Four things the build settled:
+
+- **One table, or four descriptions to keep in step.** `muse help`, the man
+  page, dispatch and the completions all describe the same commands and flags.
+  They now read `COMMANDS` and `FLAGS` in `src/cli/surface.odin`: the usage text
+  is rendered from it, dispatch looks a command up in it rather than switching on
+  a name, and `muse help commands` reports it as three tab-separated fields for a
+  generator. There is no longer a `USAGE` string to forget to edit.
+- **A vocabulary names its words rather than holding them.** `scales` is
+  `muse.scale_names` over the template table, `sizes` and `colors` are the tables
+  their parsers read, `styles` is the list `muse voice` validates against, and
+  `degrees` is the roman numerals. A topic that names a shape nothing can
+  enumerate -- a number, a file -- holds no words, which is how the generator
+  knows to leave `-o` to the shell's own file completion.
+- **The three shells disagree about spelling, and only about spelling.** bash
+  escapes the space in `harmonic minor` when it offers it and holds the words
+  plain; zsh holds them whole and lets `compadd` do it; fish is a command line
+  read twice, so it holds them escaped. `tests/completions.sh` knows those three
+  spellings and nothing else about what any of the files should contain.
+- **The test is asked of the binary, never of a list beside it.**
+  `tests/completions.sh` generates all three, checks every command, flag and
+  scale name reaches each of them, and drives bash and zsh for real by sourcing
+  the completion and asking what it would offer. fish is parsed where fish is
+  installed and read structurally where it is not, and a shell that is missing
+  is named in the output rather than passed over silently.
+
+Both halves of the gate were run by breaking them. A command added to the table
+and nothing else appeared in all three files and in `muse help commands`; a
+generator taught to skip the scale vocabulary failed 46 checks across bash and
+zsh.
 
 ---
 

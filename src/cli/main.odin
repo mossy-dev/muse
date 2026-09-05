@@ -20,48 +20,6 @@ claiming a release it is not.
 */
 VERSION :: #config(MUSE_VERSION, "dev")
 
-USAGE ::
-`usage: muse <command> [operand ...]
-
-  scale <root> [name]      build a scale, defaulting to major
-  chord <symbol>           build a chord from a symbol
-  chords [degrees ...]     harmonize a scale, every degree or the ones named
-                           a degree is 4, IV or iv; the case is muse's to get
-  notes                    reduce anything to its bare note list
-  interval <a> <b>         name the interval between two notes
-  transpose <interval>     transpose, preserving spelling
-  invert <n>               invert a voicing
-  voice <style>            realize as pitches: close open drop2 drop3 shell
-  name <notes ...>         identify the chord or scale a note set forms
-  in <key>                 annotate input with its degrees in a key
-  midi                     write a Standard MIDI File
-  json                     structured output for programs; unstable, see below
-  numbers                  bare MIDI note numbers, one line per item
-  info                     everything muse knows about the input
-  keys                     draw the input on an ASCII keyboard
-  help                     print this message
-  version                  print the version
-
-  --size 3|7|9|11|13       how far to stack a harmonization, default 3
-  --octave <n>             where a realization sounds, default 4
-  --literal                keep the degree a chord's realization drops
-  --color <when>           auto, always or never; default auto
-  --plain                  drop the annotation columns and print field one
-  --tempo <bpm>            beats per minute of a MIDI file, default 120
-  --meter <n/d>            time signature of a MIDI file, default 4/4
-  --duration <n/d>         how long each item sounds, default one bar
-  -k, --key <scale>        the key degrees and signatures are named in
-  -o <file>                write a MIDI file here instead of to stdout
-
-Every command reads its operand from its arguments, and from stdin when it has
-none, so any line muse prints can be piped into the next command or typed back
-in by hand.
-
-The json schema is unstable and may change without notice. It says what muse
-knows about a datum rather than promising how that is spelled; it settles when
-something depends on it.
-`
-
 /*
 One arena for the process, released at exit. A run of muse is a few
 milliseconds long and allocates a few kilobytes, so tracking ownership through
@@ -82,7 +40,9 @@ main :: proc() {
 }
 
 /*
-Read the command line and hand off to the command it names.
+Read the command line and hand off to the command it names, which is the row of
+COMMANDS that carries the word. There is no switch here to fall out of step with
+the usage text, since both read the same table.
 */
 dispatch :: proc(arguments: []string) -> int {
   options, token, options_ok := options_parse(arguments)
@@ -90,50 +50,21 @@ dispatch :: proc(arguments: []string) -> int {
     return fail(EXIT_USAGE, "bad option", token)
   }
   if options.help {
-    return command_help()
+    return command_help(options)
   }
   if options.version {
-    return command_version()
+    return command_version(options)
   }
 
-  switch options.command {
-  case "":
-    os.write_string(os.stderr, USAGE)
+  if len(options.command) == 0 {
+    os.write_string(os.stderr, usage_text(context.temp_allocator))
     return EXIT_USAGE
-  case "scale":
-    return command_scale(options)
-  case "chord":
-    return command_chord(options)
-  case "chords":
-    return command_chords(options)
-  case "notes":
-    return command_notes(options)
-  case "interval":
-    return command_interval(options)
-  case "transpose":
-    return command_transpose(options)
-  case "invert":
-    return command_invert(options)
-  case "voice":
-    return command_voice(options)
-  case "name":
-    return command_name(options)
-  case "in":
-    return command_in(options)
-  case "midi":
-    return command_midi(options)
-  case "json":
-    return command_json(options)
-  case "numbers":
-    return command_numbers(options)
-  case "info":
-    return command_info(options)
-  case "keys":
-    return command_keys(options)
-  case "help":
-    return command_help()
-  case "version":
-    return command_version()
+  }
+
+  for command in COMMANDS {
+    if command.name == options.command {
+      return command.run(options)
+    }
   }
 
   return fail(EXIT_USAGE, "unknown command", options.command)
