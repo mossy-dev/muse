@@ -116,6 +116,23 @@ BODY
   esac
 }
 
+# Offer a newline-separated list, escaping the space in a multi-word candidate
+# so that it reaches muse as one argument. The escaping is a loop because bash
+# 3.2, which is what macOS ships, collapses "${array[@]//pattern/text}" into a
+# single element.
+_muse_offer() {
+  local IFS index
+  IFS=$'\n'
+
+  COMPREPLY=( $(compgen -W "$1" -- "$2") )
+
+  index=0
+  while [ "$index" -lt "${#COMPREPLY[@]}" ]; do
+    COMPREPLY[$index]=${COMPREPLY[$index]// /\\ }
+    index=$((index + 1))
+  done
+}
+
 _muse() {
   local current previous vocabulary command word index
 
@@ -129,11 +146,7 @@ _muse() {
       COMPREPLY=( $(compgen -f -- "$current") )
       return
     fi
-    local IFS=$'\n'
-    COMPREPLY=( $(compgen -W "$(_muse_words "$vocabulary")" -- "$current") )
-    if [ ${#COMPREPLY[@]} -gt 0 ]; then
-      COMPREPLY=( "${COMPREPLY[@]// /\\ }" )
-    fi
+    _muse_offer "$(_muse_words "$vocabulary")" "$current"
     return
   fi
 
@@ -157,19 +170,14 @@ _muse() {
     index=$((index + 1))
   done
 
-  local offered
   if [ -z "$command" ]; then
-    offered=$(_muse_words commands)
-  else
-    offered=$(_muse_words "$(_muse_operand_vocabulary "$command")")
+    _muse_offer "$(_muse_words commands)
+$(_muse_words flags)" "$current"
+    return
   fi
 
-  local IFS=$'\n'
-  offered=$(printf '%s\n%s\n' "$offered" "$(_muse_words flags)" | grep -v '^$')
-  COMPREPLY=( $(compgen -W "$offered" -- "$current") )
-  if [ ${#COMPREPLY[@]} -gt 0 ]; then
-    COMPREPLY=( "${COMPREPLY[@]// /\\ }" )
-  fi
+  _muse_offer "$(_muse_words "$(_muse_operand_vocabulary "$command")")
+$(_muse_words flags)" "$current"
 }
 
 complete -F _muse muse

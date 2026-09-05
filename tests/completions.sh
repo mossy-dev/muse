@@ -138,6 +138,12 @@ DRIVE
   printf 'harmonic\\ minor\nharmonic\n' > "$work/expected"
   expect_same "bash after -k harm" "$work/expected" "$work/offered"
 
+  # A command with no vocabulary of its own offers the flags and nothing else,
+  # an empty candidate included.
+  offer muse notes ""
+  cat "$work/flags" > "$work/expected"
+  expect_same "bash after muse notes" "$work/expected" "$work/offered"
+
   # An operand vocabulary is offered alongside the flags, never instead of them.
   offer muse voice ""
   cat "$work/flags" > "$work/expected"
