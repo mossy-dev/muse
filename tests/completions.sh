@@ -68,10 +68,11 @@ spell_words() {
 }
 
 # A flag as the file spells it. fish takes a long name after -l and a short one
-# after -s rather than the dashes themselves.
+# after -s rather than the dashes themselves. The second expression cannot fire
+# on what the first rewrote, since only a short flag is a dash and one letter.
 spell_flags() {
   case "$1" in
-    fish) sed -e '/^--/{ s/^--/-l /; b; }' -e 's/^-/-s /' ;;
+    fish) sed -e 's/^--/-l /' -e 's/^-\(.\)$/-s \1/' ;;
     *) cat ;;
   esac
 }
