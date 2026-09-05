@@ -577,7 +577,7 @@ test_every_transform_output_reparses :: proc(t: ^testing.T) {
 
   chord, _ := datum_parse("Cmaj7", context.temp_allocator)
   voicing, named, _ := datum_realize(chord, DEFAULT_OCTAVE, false, context.temp_allocator)
-  for style in ([]string{ "close", "open", "drop2", "drop3", "shell" }) {
+  for style in VOICING_STYLES {
     voiced, voiced_ok := voicing_style(voicing, named, style, DEFAULT_OCTAVE, context.temp_allocator)
     testing.expectf(t, voiced_ok, "no %s voicing of Cmaj7", style)
     expect_datum(t, voicing_row(voiced, context.temp_allocator))
@@ -1080,5 +1080,117 @@ test_a_sink_writes_nothing_when_a_line_fails :: proc(t: ^testing.T) {
     testing.expectf(t, error == .NotNotation, "%s accepted Hmm", arguments[0])
     testing.expect_value(t, token, "Hmm")
     testing.expect_value(t, len(written), 0)
+  }
+}
+
+/*
+The surface table is what dispatch reads, so a row without a proc is a command
+that would be printed and then not found.
+*/
+@(test)
+test_every_command_has_a_proc_and_a_summary :: proc(t: ^testing.T) {
+  for command in COMMANDS {
+    testing.expectf(t, command.run != nil, "%s runs nothing", command.name)
+    testing.expectf(t, len(command.summary) > 0, "%s says nothing", command.name)
+    testing.expectf(t, len(command.name) > 0, "a command has no name")
+  }
+
+  for flag in FLAGS {
+    testing.expect(t, len(flag.names) > 0)
+    testing.expectf(t, len(flag.summary) > 0, "%s says nothing", flag.names[0])
+  }
+}
+
+/*
+Every command and every flag reaches the usage text, which is where the man page
+and the completions read the surface from.
+*/
+@(test)
+test_the_usage_text_carries_the_whole_surface :: proc(t: ^testing.T) {
+  usage := usage_text(context.temp_allocator)
+
+  for command in COMMANDS {
+    testing.expectf(t, strings.contains(usage, command.name), "usage omits %s", command.name)
+  }
+  for flag in FLAGS {
+    for name in flag.names {
+      testing.expectf(t, strings.contains(usage, name), "usage omits %s", name)
+    }
+  }
+  testing.expect(t, !strings.contains(usage, WORDS))
+}
+
+/*
+Every vocabulary a topic names has a name to be asked for by, and every word it
+holds is a word the parser it feeds accepts. This is what makes completion true
+rather than a list that agrees today: a style added to VOICING_STYLES with no
+voicing behind it fails here.
+*/
+@(test)
+test_every_vocabulary_word_is_accepted :: proc(t: ^testing.T) {
+  for name, vocabulary in VOCABULARY_NAMES {
+    if vocabulary == .None {
+      testing.expect_value(t, name, "")
+      continue
+    }
+    testing.expectf(t, len(name) > 0, "a vocabulary has no name")
+
+    parsed, parsed_ok := vocabulary_parse(name)
+    testing.expect(t, parsed_ok)
+    testing.expect_value(t, parsed, vocabulary)
+  }
+
+  for scale in vocabulary_words(.Scales, context.temp_allocator) {
+    text := strings.concatenate([]string{ "C ", scale }, context.temp_allocator)
+    _, scale_ok := muse.scale_parse(text, context.temp_allocator)
+    testing.expectf(t, scale_ok, "muse scale C %s is not a scale", scale)
+  }
+
+  chord, _ := datum_parse("Cmaj7", context.temp_allocator)
+  voicing, named, _ := datum_realize(chord, DEFAULT_OCTAVE, false, context.temp_allocator)
+  for style in vocabulary_words(.Styles, context.temp_allocator) {
+    _, style_ok := voicing_style(voicing, named, style, DEFAULT_OCTAVE, context.temp_allocator)
+    testing.expectf(t, style_ok, "%s is not a voicing style", style)
+  }
+
+  for color in vocabulary_words(.Colors, context.temp_allocator) {
+    _, color_ok := color_parse(color)
+    testing.expectf(t, color_ok, "%s is not a colour setting", color)
+  }
+  testing.expect_value(t, len(COLORS), len(Color))
+
+  for size in vocabulary_words(.Sizes, context.temp_allocator) {
+    _, size_ok := size_notes(size)
+    testing.expectf(t, size_ok, "%s is not a size", size)
+  }
+
+  for degree in vocabulary_words(.Degrees, context.temp_allocator) {
+    _, degree_ok := degree_read(degree)
+    testing.expectf(t, degree_ok, "%s is not a degree", degree)
+  }
+
+  for topic in vocabulary_words(.Topics, context.temp_allocator) {
+    _, topic_ok := vocabulary_parse(topic)
+    testing.expectf(t, topic_ok, "%s is not a topic", topic)
+  }
+}
+
+/*
+`muse help commands` and `muse help flags` are read by a generator, so each line
+carries three fields whether or not the middle one has anything to say.
+*/
+@(test)
+test_the_surface_topics_print_three_fields :: proc(t: ^testing.T) {
+  for vocabulary in ([]Vocabulary{ .Commands, .Flags }) {
+    text := vocabulary_text(vocabulary, context.temp_allocator)
+    lines := strings.split_lines(strings.trim_space(text), context.temp_allocator)
+
+    testing.expect(t, len(lines) > 0)
+    for line in lines {
+      fields := strings.split(line, "\t", context.temp_allocator)
+      testing.expectf(t, len(fields) == 3, "%s is not three fields", line)
+      testing.expect(t, len(fields[0]) > 0)
+      testing.expect(t, len(fields[2]) > 0)
+    }
   }
 }

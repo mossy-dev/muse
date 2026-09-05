@@ -2,6 +2,7 @@ package main
 
 import "core:fmt"
 import "core:os"
+import "core:slice"
 import "core:strconv"
 import "core:strings"
 
@@ -193,9 +194,7 @@ command_voice :: proc(options: Options) -> int {
   if !style_ok {
     return fail(EXIT_USAGE, "voice takes a style", options.command)
   }
-  switch style {
-  case "close", "open", "drop2", "drop3", "shell":
-  case:
+  if !slice.contains(VOICING_STYLES, style) {
     return fail(EXIT_USAGE, "not a voicing style", style)
   }
 
@@ -356,20 +355,11 @@ command_in :: proc(options: Options) -> int {
 }
 
 /*
-Print the command surface. It goes to stdout and exits clean, unlike the same
-text printed for a command line with nothing on it.
-*/
-command_help :: proc() -> int {
-  os.write_string(os.stdout, USAGE)
-  return EXIT_SUCCESS
-}
-
-/*
 Print the version a build was stamped with. A packaged build passes its own
 through `-define:MUSE_VERSION=`, so the binary reports what the package manager
 installed rather than what the source tree last happened to say.
 */
-command_version :: proc() -> int {
+command_version :: proc(options: Options) -> int {
   os.write_string(os.stdout, fmt.tprintf("muse %s\n", VERSION))
   return EXIT_SUCCESS
 }
@@ -706,6 +696,14 @@ name_row :: proc(notes: []muse.Note, allocator := context.allocator) -> (Row, bo
   annotations[0] = notes_string(notes, allocator)
   return Row{ datum = muse.chord_string(chord, allocator), annotations = annotations }, true
 }
+
+/*
+The five styles a voicing can be realized in. The list is what `muse voice`
+accepts and what completion offers; voicing_style below is how each one is
+built.
+*/
+@(rodata)
+VOICING_STYLES := []string { "close", "open", "drop2", "drop3", "shell" }
 
 /*
 Apply a voicing style. close is the realization as it arrives, since realizing

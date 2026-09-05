@@ -24,7 +24,7 @@ brew install mossy-dev/tap/muse
 
 Prebuilt binaries for Linux x86_64, macOS arm64 and macOS x86_64 are on the
 [releases page](https://github.com/mossy-dev/muse/releases), each with the man
-page and a `SHA256SUMS` to check it against.
+page, the shell completions and a `SHA256SUMS` to check it against.
 
 On Arch, the packages are not on the AUR yet. The `PKGBUILD`s are in
 [`packaging/aur/`](packaging/aur/) and build today:
@@ -47,11 +47,25 @@ Put the resulting binary on your `PATH`.
 Or with [just](https://github.com/casey/just):
 
 ```
-just test       # the library, the CLI, and the golden transcripts
-just install    # binary, man page and licence; honours PREFIX and DESTDIR
+just test       # the library, the CLI, the transcripts and the completions
+just install    # binary, man page, completions and licence; honours PREFIX and DESTDIR
 ```
 
 Then `muse --version` and `man muse`.
+
+Every package installs completions for bash, zsh and fish. They complete the
+commands, the flags, and the words each one takes:
+
+```
+$ muse voice <TAB>
+close  drop2  drop3  open  shell
+
+$ muse scale G harm<TAB>
+$ muse scale G harmonic minor
+```
+
+`muse help <topic>` answers the same questions in the terminal — `muse help
+scales` lists every scale name, `muse help styles` every voicing style.
 
 ## Worked examples
 
@@ -277,6 +291,10 @@ Flags:
 | `-k, --key <scale>` | the key to write a file in or name degrees against |
 | `-o <file>` | write a MIDI file here instead of to stdout |
 | `--help`, `--version` | print the command surface, or the version |
+
+`muse help <topic>` prints the words a topic holds: `commands`, `flags`,
+`scales`, `styles`, `degrees`, `colors` or `sizes`. `muse help topics` lists
+them.
 
 `man muse` says all of this again, at length.
 

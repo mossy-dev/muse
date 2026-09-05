@@ -30,6 +30,9 @@ class Muse < Formula
   def install
     bin.install "muse"
     man1.install "muse.1"
+    bash_completion.install "completions/muse.bash" => "muse"
+    zsh_completion.install "completions/_muse"
+    fish_completion.install "completions/muse.fish"
   end
 
   test do

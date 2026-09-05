@@ -48,6 +48,11 @@ jobs:
       - name: Run the transcript
         run: ./tests/transcript.sh
 
+      # The completions are generated from the binary too, and the checks in
+      # here are asked of the binary rather than of a list kept beside them.
+      - name: Generate and check the completions
+        run: ./tests/completions.sh
+
       # The page is generated from the binary, so a broken generator is a broken
       # release. groff is asked for warnings and told not to render anything.
       - name: Generate and check the man page

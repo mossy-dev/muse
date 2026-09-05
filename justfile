@@ -19,6 +19,7 @@ test: build
   odin test src/muse
   odin test src/cli
   ./tests/transcript.sh
+  ./tests/completions.sh
 
 transcript: build
   ./tests/transcript.sh
@@ -31,11 +32,24 @@ run: build
 man: build
   ./tools/manpage.sh build > muse.1
 
+# The completions are generated for the same reason the page is: the commands,
+# the flags and the words each one takes come from `muse help`.
+completions: build
+  ./tools/completions.sh build bash > muse.bash
+  ./tools/completions.sh build zsh  > _muse
+  ./tools/completions.sh build fish > muse.fish
+
 install: release
   ./tools/manpage.sh build > muse.1
+  ./tools/completions.sh build bash > muse.bash
+  ./tools/completions.sh build zsh  > _muse
+  ./tools/completions.sh build fish > muse.fish
   install -Dm755 build {{destdir}}{{prefix}}/bin/muse
   install -Dm644 muse.1 {{destdir}}{{prefix}}/share/man/man1/muse.1
+  install -Dm644 muse.bash {{destdir}}{{prefix}}/share/bash-completion/completions/muse
+  install -Dm644 _muse {{destdir}}{{prefix}}/share/zsh/site-functions/_muse
+  install -Dm644 muse.fish {{destdir}}{{prefix}}/share/fish/vendor_completions.d/muse.fish
   install -Dm644 LICENSE {{destdir}}{{prefix}}/share/licenses/muse/LICENSE
 
 clean:
-  rm -f build muse.1
+  rm -f build muse.1 muse.bash _muse muse.fish

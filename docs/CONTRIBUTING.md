@@ -10,19 +10,22 @@ You need [Odin](https://odin-lang.org/docs/install/) and, for the recipes,
 [just](https://github.com/casey/just).
 
 ```
-just test       # the library, the CLI, and the golden transcripts
-just build      # ./build, one binary, debug
-just release    # optimized
-just man        # muse.1, generated from the binary's help text
+just test         # the library, the CLI, the transcripts and the completions
+just build        # ./build, one binary, debug
+just release      # optimized
+just man          # muse.1, generated from the binary's help text
+just completions  # bash, zsh and fish, generated the same way
 ```
 
-The man page is not kept in the tree. `tools/manpage.sh` runs `muse help` and
-wraps the result in roff, so the page's command surface is the binary's, and a
-stored copy that could disagree with it never exists. Change `USAGE` in
-`src/cli/main.odin` and the page follows.
+Neither the man page nor the completions are kept in the tree. `tools/manpage.sh`
+runs `muse help` and wraps the result in roff; `tools/completions.sh` reads the
+same surface through `muse help commands`, `muse help flags` and the vocabulary
+topics beside them. Both follow from `COMMANDS` and `FLAGS` in
+`src/cli/surface.odin`, which is also the table dispatch reads, so a command
+added there is dispatched, documented and completed at once.
 
 `just test` is the gate. It has to be green before a pull request, and CI runs
-the same three things on Linux x86_64, macOS arm64 and macOS x86_64.
+the same four things on Linux x86_64, macOS arm64 and macOS x86_64.
 
 ## The transcript is the contract
 
