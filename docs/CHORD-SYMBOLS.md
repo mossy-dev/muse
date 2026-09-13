@@ -385,8 +385,10 @@ The interval sets that carry a name, and therefore the only answers
 13  m13  maj13
 ```
 
-Everything else in section 8 is constructible, printable and re-parseable, but
-unnameable: `C7b9` has a canonical spelling and no template. See section 10.
+These are the names muse reaches with nothing said about them. Everything else
+in section 8 is named too, by the modifiers that build it — see section 10 —
+and the table's job is narrower than it was: it is where a set that is a plain
+name gets one, and where the ranking's first rule finds its zero.
 
 No two of these realize alike, in either their full or their idiomatic form.
 That is what keeps identification single-valued, and it is why `9sus4` is absent
@@ -465,14 +467,44 @@ four notes. The symbol is the datum, and it survives.
 
 ## 10. What this table does not settle
 
-**Identification is template matching.** `chord_identify` searches the templates
-of section 8.9 in both their full and idiomatic realizations, and applies
-`DESIGN.md`'s ranking. So
-`C E G Bb D A` identifies as `C13` even though six of the thirteenth's seven
-intervals are present, and `A C E G` identifies as `Am7` rather than `C6` by the
-first ranking rule. A set built only by alteration, such as `C E G Bb Db`, has no
-template and is reported as a note list. Naming those is parking lot item F in
-`DESIGN.md`.
+**Identification searches bases, not templates.** `chord_identify` builds every
+quality against every extension with `chord_stack` — the parser's own
+construction, optionally suspended — and expresses whatever a base does not
+account for as modifiers. A candidate is kept only once its symbol has been
+parsed back and found to name the set it came from, so every name below reads
+as input. The ranking is `DESIGN.md`'s: fewest modifiers, then the earliest root
+supplied, then the modifier order of section 6, then the shorter symbol.
+
+So `C E G Bb Db` is `C7b9` rather than a note list, and `C E G Bb D A`
+identifies as `C13` even though six of the thirteenth's seven intervals are
+present.
+
+**Two limits.** A name may carry at most two modifiers; `C E G Ab Db F#` would
+be `C(b9#11b13)` at three and is unnamed at two. And only the stacked degrees —
+7, 9, 11, 13 — may be dropped, so `C D E` is not `Cadd9no5`: a reading that
+discards the chord's own third or fifth is not a name for it, and the note list
+is the answer.
+
+**Where a note set has two names**, the ranking picks one and this is what it
+picked. Both columns spell the same notes; neither is wrong.
+
+| Notes | Identified as | Also spelled |
+|---|---|---|
+| C D E G | `Cadd9` | `Cadd2` |
+| C F G Bb D | `C11` | `C9sus4` |
+| C G Bb F | `C7sus4` | `C11no9` |
+| C E G Bb F | `Fmaj11/C` | `C11no9 --literal` |
+| C E G Bb Db F# | `Edim9b13/C` | `C7b9#11` |
+| C E G Bb D A | `C13` | `C13no11` |
+| C E G Bb D F# A | `GmMaj13/C` | `C13#11` |
+| C G Bb D F A | `Gm11/C` | `C13sus4` |
+| Eb G Bb C | `Eb6` | `Cm7/Eb` |
+| D C E G | `Cadd9/D` | `C/D` |
+| Bb C E G | `C7/Bb` | `C/Bb` |
+| E G A D C | `D11/E` | `C69/E` |
+
+Every other symbol in section 8 reads back as itself from either of its
+realizations, which is the property `chord_test.odin` asserts row by row.
 
 **The alias set is a first cut**, per parking lot item E. It grows when something
 real fails to parse, not before.
@@ -536,5 +568,5 @@ worked example.
 | The exact ambiguity-warning condition | §7, with the full six-row set |
 | Aliases: `Δ ø ° - + M min maj`, Unicode accidentals | §2, §8.3, §8.8 |
 | ASCII on output | §6, §8.8 |
-| Identification ranking is template-based | §10 |
+| Identification ranking, and what it costs | §10 |
 | Exit codes 1 and 2 | §10, §11 |

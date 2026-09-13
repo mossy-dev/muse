@@ -96,7 +96,7 @@ F#m7b5  viiø7   F# A C E
 
 Harmonizing stacks alternate members of the scale and names the result by
 identifying it, so a pentatonic or a blues scale harmonizes too, and a stack
-no template names carries its notes as the datum instead.
+with no name carries its notes as the datum instead.
 
 A degree sequence is a progression, in the order it was asked for:
 
@@ -125,8 +125,8 @@ C11  C G Bb D F  omits 3
 `--literal` prints the full stack. It is a rendering flag: the chord holds the
 complete interval set either way, and both realizations identify as `C13`.
 
-Identification is the template table read backwards, ranked by the reading rooted
-on the lowest note supplied:
+Identification searches every quality against every extension and says what the
+notes add to it, so a chord no table names still has a name:
 
 ```
 $ muse name A C E G
@@ -134,6 +134,17 @@ Am7  A C E G
 
 $ muse name C E G A
 C6  C E G A
+
+$ muse name C E G Bb Db
+C7b9  C E G Bb Db
+```
+
+A name carries at most two alterations. Past that, and for a set that would have
+to give up its own third or fifth, the notes are the answer:
+
+```
+$ muse name C D E
+muse: no name for these notes: C D E
 ```
 
 Voicings work on pitches, so inversion raises tones by an octave rather than
